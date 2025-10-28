@@ -34,6 +34,46 @@
         .upload-area:hover { background: #eef1ff; border-color: #764ba2; }
         .upload-area.dragover { background: #e0e7ff; border-color: #4f46e5; }
         input[type="file"] { display: none; }
+        .category-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 10px;
+        }
+        .category-section h3 { color: #667eea; margin-bottom: 15px; }
+        select, input[type="text"] {
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+            font-size: 16px;
+            width: 100%;
+        }
+        .new-category-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .new-category-row input { flex: 1; }
+        .new-category-row button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .new-category-row button:hover { background: #5568d3; }
+        .selected-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e0e7ff;
+            border-radius: 8px;
+            color: #667eea;
+            font-weight: bold;
+            display: none;
+        }
+        .selected-info.show { display: block; }
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -44,6 +84,7 @@
             font-size: 16px;
             margin-top: 20px;
             transition: transform 0.2s;
+            width: 100%;
         }
         .btn:hover { transform: translateY(-2px); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -63,6 +104,15 @@
         }
         .dataset-info { flex: 1; }
         .dataset-name { font-weight: bold; color: #333; }
+        .dataset-category {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
         .dataset-meta { color: #666; font-size: 14px; margin-top: 5px; }
         .delete-btn {
             background: #dc3545;
@@ -98,7 +148,7 @@
 <body>
     <div class="container">
         <h1>🌲 Timber Inventory API</h1>
-        <p class="subtitle">Upload și gestionează fișiere CSV</p>
+        <p class="subtitle">Upload și gestionează fișiere CSV cu categorii</p>
 
         <div class="upload-area" id="uploadArea">
             <p style="font-size: 48px; margin-bottom: 10px;">📁</p>
@@ -107,6 +157,23 @@
             </p>
             <p style="color: #666;">Fișiere CSV acceptate</p>
             <input type="file" id="fileInput" accept=".csv">
+        </div>
+
+        <div class="category-section">
+            <h3>📂 Selectează sau creează categorie</h3>
+            
+            <select id="categorySelect">
+                <option value="">Se încarcă categorii...</option>
+            </select>
+            
+            <div class="new-category-row">
+                <input type="text" 
+                       id="newCategoryInput" 
+                       placeholder="Sau creează categorie nouă..." />
+                <button id="useNewCategory">Folosește</button>
+            </div>
+            
+            <div class="selected-info" id="selectedInfo"></div>
         </div>
 
         <div class="loader" id="loader"></div>
@@ -127,8 +194,64 @@
         const message = document.getElementById('message');
         const loader = document.getElementById('loader');
         const datasetsList = document.getElementById('datasetsList');
+        const categorySelect = document.getElementById('categorySelect');
+        const newCategoryInput = document.getElementById('newCategoryInput');
+        const useNewCategoryBtn = document.getElementById('useNewCategory');
+        const selectedInfo = document.getElementById('selectedInfo');
 
         let selectedFile = null;
+        let selectedCategory = '';
+
+        // Load categories on page load
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                const data = await response.json();
+                
+                // Default categories + loaded ones
+                const defaultCategories = ['apv', 'volume', 'inventar', 'dealuri'];
+                const allCategories = [...new Set([...defaultCategories, ...data.categories])];
+                
+                categorySelect.innerHTML = '<option value="">Selectează categorie...</option>';
+                
+                allCategories.sort().forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat.toUpperCase();
+                    categorySelect.appendChild(option);
+                });
+                
+            } catch (err) {
+                console.error('Error loading categories:', err);
+                categorySelect.innerHTML = '<option value="general">General</option>';
+            }
+        }
+
+        // Category selection
+        categorySelect.addEventListener('change', (e) => {
+            selectedCategory = e.target.value;
+            updateSelectedInfo();
+        });
+
+        // New category button
+        useNewCategoryBtn.addEventListener('click', () => {
+            const newCat = newCategoryInput.value.trim().toLowerCase();
+            if (newCat) {
+                selectedCategory = newCat;
+                categorySelect.value = '';
+                newCategoryInput.value = '';
+                updateSelectedInfo();
+            }
+        });
+
+        function updateSelectedInfo() {
+            if (selectedCategory) {
+                selectedInfo.textContent = `✓ Categorie: ${selectedCategory.toUpperCase()}`;
+                selectedInfo.classList.add('show');
+            } else {
+                selectedInfo.classList.remove('show');
+            }
+        }
 
         // Click to upload
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -167,9 +290,15 @@
 
         uploadBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
+            
+            if (!selectedCategory) {
+                showMessage('❌ Selectează sau creează o categorie!', 'error');
+                return;
+            }
 
             const formData = new FormData();
             formData.append('file', selectedFile);
+            formData.append('category', selectedCategory);
 
             loader.style.display = 'block';
             uploadBtn.disabled = true;
@@ -183,10 +312,14 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showMessage(`✅ ${data.message} - ${data.rows} înregistrări`, 'success');
+                    showMessage(`✅ ${data.message} - ${data.rows} înregistrări în categoria "${data.category}"`, 'success');
                     selectedFile = null;
+                    selectedCategory = '';
                     uploadBtn.style.display = 'none';
                     fileInput.value = '';
+                    categorySelect.value = '';
+                    selectedInfo.classList.remove('show');
+                    loadCategories();
                     loadDatasets();
                 } else {
                     showMessage(`❌ Eroare: ${data.error}`, 'error');
@@ -218,7 +351,10 @@
                 datasetsList.innerHTML = data.datasets.map(dataset => `
                     <div class="dataset-item">
                         <div class="dataset-info">
-                            <div class="dataset-name">${dataset.filename}</div>
+                            <div class="dataset-name">
+                                ${dataset.filename}
+                                <span class="dataset-category">${dataset.category}</span>
+                            </div>
                             <div class="dataset-meta">
                                 ${dataset.record_count} înregistrări • 
                                 ${new Date(dataset.uploaded_at).toLocaleString('ro-RO')}
@@ -239,6 +375,7 @@
                 const response = await fetch(`/api/data/${id}`, { method: 'DELETE' });
                 if (response.ok) {
                     showMessage('✅ Dataset șters', 'success');
+                    loadCategories();
                     loadDatasets();
                 }
             } catch (err) {
@@ -246,7 +383,8 @@
             }
         }
 
-        // Load datasets on page load
+        // Load data on page load
+        loadCategories();
         loadDatasets();
     </script>
 </body>

@@ -39,6 +39,7 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS csv_files (
         id SERIAL PRIMARY KEY,
         filename VARCHAR(255) NOT NULL,
+        category VARCHAR(50) DEFAULT 'general',
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -61,16 +62,39 @@ async function initDatabase() {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    message: 'Timber Inventory API with Database',
-    version: '2.0.0',
+    message: 'Timber Inventory API with Categories',
+    version: '2.1.0',
     status: 'running',
     endpoints: {
       upload: 'POST /api/upload',
-      datasets: 'GET /api/datasets',
+      categories: 'GET /api/categories',
+      datasets: 'GET /api/datasets?category=xxx',
       data: 'GET /api/data/:filename',
       delete: 'DELETE /api/data/:id'
     }
   });
+});
+
+// Get all available categories
+app.get('/api/categories', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT category 
+      FROM csv_files 
+      WHERE category IS NOT NULL 
+      ORDER BY category
+    `);
+    
+    const categories = result.rows.map(row => row.category);
+    
+    res.json({
+      categories: categories,
+      count: categories.length
+    });
+  } catch (err) {
+    console.error('Error fetching categories:', err);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
 });
 
 // Upload CSV endpoint
@@ -84,10 +108,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    const category = req.body.category || 'general';
+    
     // Insert file record
     const fileResult = await client.query(
-      'INSERT INTO csv_files (filename) VALUES ($1) RETURNING id',
-      [req.file.originalname]
+      'INSERT INTO csv_files (filename, category) VALUES ($1, $2) RETURNING id',
+      [req.file.originalname, category]
     );
     const fileId = fileResult.rows[0].id;
 
@@ -117,6 +143,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       success: true,
       message: 'File uploaded successfully',
       filename: req.file.originalname,
+      category: category,
       rows: rows.length,
       fileId: fileId
     });
@@ -130,20 +157,31 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// Get all datasets
+// Get all datasets (with optional category filter)
 app.get('/api/datasets', async (req, res) => {
   try {
-    const result = await pool.query(`
+    const category = req.query.category;
+    
+    let query = `
       SELECT 
         f.id,
         f.filename,
+        f.category,
         f.uploaded_at,
         COUNT(d.id) as record_count
       FROM csv_files f
       LEFT JOIN csv_data d ON f.id = d.file_id
-      GROUP BY f.id, f.filename, f.uploaded_at
-      ORDER BY f.uploaded_at DESC
-    `);
+    `;
+    
+    const params = [];
+    if (category) {
+      query += ' WHERE f.category = $1';
+      params.push(category);
+    }
+    
+    query += ' GROUP BY f.id, f.filename, f.category, f.uploaded_at ORDER BY f.uploaded_at DESC';
+    
+    const result = await pool.query(query, params);
 
     res.json({
       datasets: result.rows,
@@ -193,7 +231,7 @@ app.delete('/api/data/:id', async (req, res) => {
 // Sync all data (for Android)
 app.get('/api/sync', async (req, res) => {
   try {
-    const filesResult = await pool.query('SELECT id, filename FROM csv_files');
+    const filesResult = await pool.query('SELECT id, filename, category FROM csv_files');
     const syncData = {};
 
     for (const file of filesResult.rows) {
@@ -201,7 +239,10 @@ app.get('/api/sync', async (req, res) => {
         'SELECT row_data FROM csv_data WHERE file_id = $1',
         [file.id]
       );
-      syncData[file.filename] = dataResult.rows.map(r => r.row_data);
+      syncData[file.filename] = {
+        category: file.category,
+        data: dataResult.rows.map(r => r.row_data)
+      };
     }
 
     res.json({
