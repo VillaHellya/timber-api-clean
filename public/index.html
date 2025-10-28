@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timber API - Upload CSV</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover { background: #eef1ff; border-color: #764ba2; }
+        .upload-area.dragover { background: #e0e7ff; border-color: #4f46e5; }
+        input[type="file"] { display: none; }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .datasets {
+            margin-top: 40px;
+            border-top: 2px solid #eee;
+            padding-top: 30px;
+        }
+        .dataset-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .dataset-info { flex: 1; }
+        .dataset-name { font-weight: bold; color: #333; }
+        .dataset-meta { color: #666; font-size: 14px; margin-top: 5px; }
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .delete-btn:hover { background: #c82333; }
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message.show { display: block; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌲 Timber Inventory API</h1>
+        <p class="subtitle">Upload și gestionează fișiere CSV</p>
+
+        <div class="upload-area" id="uploadArea">
+            <p style="font-size: 48px; margin-bottom: 10px;">📁</p>
+            <p style="font-size: 18px; color: #667eea; margin-bottom: 10px;">
+                <strong>Click sau drag & drop</strong>
+            </p>
+            <p style="color: #666;">Fișiere CSV acceptate</p>
+            <input type="file" id="fileInput" accept=".csv">
+        </div>
+
+        <div class="loader" id="loader"></div>
+        <div class="message" id="message"></div>
+
+        <button class="btn" id="uploadBtn" style="display:none;">Upload CSV</button>
+
+        <div class="datasets">
+            <h2>📊 Datasets disponibile</h2>
+            <div id="datasetsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const message = document.getElementById('message');
+        const loader = document.getElementById('loader');
+        const datasetsList = document.getElementById('datasetsList');
+
+        let selectedFile = null;
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // Drag & drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                selectedFile = files[0];
+                showUploadButton();
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            showUploadButton();
+        });
+
+        function showUploadButton() {
+            if (selectedFile) {
+                uploadBtn.style.display = 'block';
+                uploadBtn.textContent = `Upload: ${selectedFile.name}`;
+            }
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            loader.style.display = 'block';
+            uploadBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage(`✅ ${data.message} - ${data.rows} înregistrări`, 'success');
+                    selectedFile = null;
+                    uploadBtn.style.display = 'none';
+                    fileInput.value = '';
+                    loadDatasets();
+                } else {
+                    showMessage(`❌ Eroare: ${data.error}`, 'error');
+                }
+            } catch (err) {
+                showMessage(`❌ Eroare: ${err.message}`, 'error');
+            } finally {
+                loader.style.display = 'none';
+                uploadBtn.disabled = false;
+            }
+        });
+
+        function showMessage(text, type) {
+            message.textContent = text;
+            message.className = `message ${type} show`;
+            setTimeout(() => message.classList.remove('show'), 5000);
+        }
+
+        async function loadDatasets() {
+            try {
+                const response = await fetch('/api/datasets');
+                const data = await response.json();
+
+                if (data.datasets.length === 0) {
+                    datasetsList.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Niciun dataset încărcat</p>';
+                    return;
+                }
+
+                datasetsList.innerHTML = data.datasets.map(dataset => `
+                    <div class="dataset-item">
+                        <div class="dataset-info">
+                            <div class="dataset-name">${dataset.filename}</div>
+                            <div class="dataset-meta">
+                                ${dataset.record_count} înregistrări • 
+                                ${new Date(dataset.uploaded_at).toLocaleString('ro-RO')}
+                            </div>
+                        </div>
+                        <button class="delete-btn" onclick="deleteDataset(${dataset.id})">Șterge</button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading datasets:', err);
+            }
+        }
+
+        async function deleteDataset(id) {
+            if (!confirm('Sigur vrei să ștergi acest dataset?')) return;
+
+            try {
+                const response = await fetch(`/api/data/${id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    showMessage('✅ Dataset șters', 'success');
+                    loadDatasets();
+                }
+            } catch (err) {
+                showMessage(`❌ Eroare: ${err.message}`, 'error');
+            }
+        }
+
+        // Load datasets on page load
+        loadDatasets();
+    </script>
+</body>
+</html>
