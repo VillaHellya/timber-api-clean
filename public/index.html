@@ -23,6 +23,40 @@
         h1 { color: #333; margin-bottom: 10px; }
         .subtitle { color: #666; margin-bottom: 30px; }
         
+        .search-box {
+            margin: 20px 0;
+            position: relative;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 45px 12px 15px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #764ba2;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+        }
+        .search-clear {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+        }
+        .search-clear.show {
+            display: block;
+        }
+        
         .upload-area {
             border: 3px dashed #667eea;
             border-radius: 10px;
@@ -126,6 +160,15 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
+        }
+        .file-item.duplicate {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+        }
+        .file-item.duplicate .warning {
+            color: #856404;
+            font-weight: bold;
+            margin-left: 10px;
         }
         
         .btn {
@@ -251,6 +294,7 @@
         }
         .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message.warning { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
         .message.show { display: block; }
         
         .loader {
@@ -265,18 +309,25 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        .edit-category-input {
-            padding: 5px 10px;
-            border: 2px solid white;
-            border-radius: 5px;
-            font-size: 16px;
-            width: 200px;
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🌲 Timber Inventory API</h1>
+        
+        <div class="search-box">
+            <input type="text" 
+                   id="searchInput" 
+                   class="search-input"
+                   placeholder="🔍 Caută fișiere sau categorii...">
+            <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+        </div>
+        
         <p class="subtitle">Upload și gestionează fișiere CSV cu categorii</p>
 
         <div class="upload-area" id="uploadArea">
@@ -341,9 +392,53 @@
         const useNewCategoryBtn = document.getElementById('useNewCategory');
         const selectedInfo = document.getElementById('selectedInfo');
         const fileList = document.getElementById('fileList');
+        const searchInput = document.getElementById('searchInput');
+        const searchClear = document.getElementById('searchClear');
 
         let selectedFiles = [];
         let selectedCategory = '';
+        let allDatasets = [];
+        let searchTimeout = null;
+
+        // Search functionality
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            
+            if (query.length > 0) {
+                searchClear.classList.add('show');
+                searchTimeout = setTimeout(() => performSearch(query), 300);
+            } else {
+                searchClear.classList.remove('show');
+                displayDatasets(allDatasets);
+            }
+        });
+
+        async function performSearch(query) {
+            try {
+                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                if (data.results.length === 0) {
+                    datasetsList.innerHTML = `
+                        <div class="no-results">
+                            <p style="font-size: 48px; margin-bottom: 10px;">🔍</p>
+                            <p>Niciun rezultat pentru "${query}"</p>
+                        </div>
+                    `;
+                } else {
+                    displayDatasets(data.results);
+                }
+            } catch (err) {
+                console.error('Search error:', err);
+            }
+        }
+
+        function clearSearch() {
+            searchInput.value = '';
+            searchClear.classList.remove('show');
+            displayDatasets(allDatasets);
+        }
 
         // Load categories
         async function loadCategories() {
@@ -392,23 +487,54 @@
         }
 
         // File selection
-        function handleFiles(files) {
+        async function handleFiles(files) {
             selectedFiles = Array.from(files).filter(f => f.name.endsWith('.csv'));
-            if (selectedFiles.length > 0) {
+            
+            if (selectedFiles.length > 0 && selectedCategory) {
+                // Check for duplicates
+                await checkDuplicates();
+                showFileList();
+                uploadBtn.style.display = 'block';
+                uploadBtn.textContent = `Upload ${selectedFiles.length} fișier(e)`;
+            } else if (selectedFiles.length > 0) {
                 showFileList();
                 uploadBtn.style.display = 'block';
                 uploadBtn.textContent = `Upload ${selectedFiles.length} fișier(e)`;
             }
         }
 
+        async function checkDuplicates() {
+            if (!selectedCategory) return;
+            
+            try {
+                const response = await fetch(`/api/datasets?category=${selectedCategory}`);
+                const data = await response.json();
+                const existingFiles = data.datasets.map(d => d.filename);
+                
+                selectedFiles.forEach(file => {
+                    file.isDuplicate = existingFiles.includes(file.name);
+                });
+            } catch (err) {
+                console.error('Error checking duplicates:', err);
+            }
+        }
+
         function showFileList() {
             fileList.innerHTML = selectedFiles.map((file, index) => `
-                <div class="file-item">
-                    <span>${file.name} (${(file.size / 1024).toFixed(2)} KB)</span>
+                <div class="file-item ${file.isDuplicate ? 'duplicate' : ''}">
+                    <span>
+                        ${file.name} (${(file.size / 1024).toFixed(2)} KB)
+                        ${file.isDuplicate ? '<span class="warning">⚠️ DUPLICAT</span>' : ''}
+                    </span>
                     <button onclick="removeFile(${index})">✕</button>
                 </div>
             `).join('');
             fileList.classList.add('show');
+            
+            const hasDuplicates = selectedFiles.some(f => f.isDuplicate);
+            if (hasDuplicates) {
+                showMessage('⚠️ Unele fișiere există deja în această categorie!', 'warning');
+            }
         }
 
         function removeFile(index) {
@@ -422,7 +548,7 @@
             }
         }
 
-        // Drag & drop for upload area
+        // Drag & drop
         uploadArea.addEventListener('click', () => fileInput.click());
 
         uploadArea.addEventListener('dragover', (e) => {
@@ -452,13 +578,25 @@
                 return;
             }
 
+            const hasDuplicates = selectedFiles.some(f => f.isDuplicate);
+            if (hasDuplicates) {
+                const confirm = window.confirm('Unele fișiere există deja. Vrei să sari peste duplicate?');
+                if (!confirm) return;
+            }
+
             loader.style.display = 'block';
             uploadBtn.disabled = true;
 
             let successCount = 0;
             let errorCount = 0;
+            let skippedCount = 0;
 
             for (const file of selectedFiles) {
+                if (file.isDuplicate) {
+                    skippedCount++;
+                    continue;
+                }
+
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('category', selectedCategory);
@@ -471,6 +609,8 @@
 
                     if (response.ok) {
                         successCount++;
+                    } else if (response.status === 409) {
+                        skippedCount++;
                     } else {
                         errorCount++;
                     }
@@ -482,8 +622,14 @@
             loader.style.display = 'none';
             uploadBtn.disabled = false;
 
+            let msg = '';
+            if (successCount > 0) msg += `✅ ${successCount} uploadate`;
+            if (skippedCount > 0) msg += ` | ⚠️ ${skippedCount} duplicate sărite`;
+            if (errorCount > 0) msg += ` | ❌ ${errorCount} erori`;
+
+            showMessage(msg, successCount > 0 ? 'success' : 'warning');
+
             if (successCount > 0) {
-                showMessage(`✅ ${successCount} fișier(e) uploadate cu succes!`, 'success');
                 selectedFiles = [];
                 selectedCategory = '';
                 uploadBtn.style.display = 'none';
@@ -495,10 +641,6 @@
                 loadCategories();
                 loadDatasets();
             }
-
-            if (errorCount > 0) {
-                showMessage(`⚠️ ${errorCount} fișier(e) au eșuat`, 'error');
-            }
         });
 
         function showMessage(text, type) {
@@ -507,59 +649,63 @@
             setTimeout(() => message.classList.remove('show'), 5000);
         }
 
-        // Load datasets grouped by category
+        // Load datasets
         async function loadDatasets() {
             try {
                 const response = await fetch('/api/datasets');
                 const data = await response.json();
+                allDatasets = data.datasets;
 
-                if (data.datasets.length === 0) {
-                    datasetsList.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Niciun dataset încărcat</p>';
-                    return;
-                }
-
-                // Group by category
-                const grouped = {};
-                data.datasets.forEach(dataset => {
-                    if (!grouped[dataset.category]) {
-                        grouped[dataset.category] = [];
-                    }
-                    grouped[dataset.category].push(dataset);
-                });
-
-                // Render
-                datasetsList.innerHTML = Object.keys(grouped).sort().map(category => `
-                    <div class="category-group">
-                        <div class="category-header" onclick="toggleCategory('${category}')">
-                            <div class="category-title">
-                                <span class="category-name" id="catname-${category}">${category.toUpperCase()}</span>
-                                <span class="category-count">(${grouped[category].length} fișier${grouped[category].length > 1 ? 'e' : ''})</span>
-                            </div>
-                            <div class="category-actions" onclick="event.stopPropagation()">
-                                <button class="edit-category-btn" onclick="editCategory('${category}')">✏️ Editează</button>
-                                <button class="delete-category-btn" onclick="deleteCategory('${category}')">🗑️ Șterge tot</button>
-                            </div>
-                            <span class="category-arrow" id="arrow-${category}">▼</span>
-                        </div>
-                        <div class="category-content" id="content-${category}">
-                            ${grouped[category].map(dataset => `
-                                <div class="dataset-item">
-                                    <div class="dataset-info">
-                                        <div class="dataset-name">${dataset.filename}</div>
-                                        <div class="dataset-meta">
-                                            ${dataset.record_count} înregistrări • 
-                                            ${new Date(dataset.uploaded_at).toLocaleString('ro-RO')}
-                                        </div>
-                                    </div>
-                                    <button class="delete-btn" onclick="deleteDataset(${dataset.id})">Șterge</button>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `).join('');
+                displayDatasets(allDatasets);
             } catch (err) {
                 console.error('Error loading datasets:', err);
             }
+        }
+
+        function displayDatasets(datasets) {
+            if (datasets.length === 0) {
+                datasetsList.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Niciun dataset încărcat</p>';
+                return;
+            }
+
+            // Group by category
+            const grouped = {};
+            datasets.forEach(dataset => {
+                if (!grouped[dataset.category]) {
+                    grouped[dataset.category] = [];
+                }
+                grouped[dataset.category].push(dataset);
+            });
+
+            // Render
+            datasetsList.innerHTML = Object.keys(grouped).sort().map(category => `
+                <div class="category-group">
+                    <div class="category-header" onclick="toggleCategory('${category}')">
+                        <div class="category-title">
+                            <span class="category-name" id="catname-${category}">${category.toUpperCase()}</span>
+                            <span class="category-count">(${grouped[category].length} fișier${grouped[category].length > 1 ? 'e' : ''})</span>
+                        </div>
+                        <div class="category-actions" onclick="event.stopPropagation()">
+                            <button class="delete-category-btn" onclick="deleteCategory('${category}')">🗑️ Șterge tot</button>
+                        </div>
+                        <span class="category-arrow" id="arrow-${category}">▼</span>
+                    </div>
+                    <div class="category-content" id="content-${category}">
+                        ${grouped[category].map(dataset => `
+                            <div class="dataset-item">
+                                <div class="dataset-info">
+                                    <div class="dataset-name">${dataset.filename}</div>
+                                    <div class="dataset-meta">
+                                        ${dataset.record_count} înregistrări • 
+                                        ${new Date(dataset.uploaded_at).toLocaleString('ro-RO')}
+                                    </div>
+                                </div>
+                                <button class="delete-btn" onclick="deleteDataset(${dataset.id})">Șterge</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
         }
 
         function toggleCategory(category) {
@@ -567,14 +713,6 @@
             const arrow = document.getElementById(`arrow-${category}`);
             content.classList.toggle('expanded');
             arrow.classList.toggle('expanded');
-        }
-
-        async function editCategory(oldCategory) {
-            const newName = prompt(`Redenumește categoria "${oldCategory}":`, oldCategory);
-            if (!newName || newName === oldCategory) return;
-
-            // TODO: Implement category rename endpoint on server
-            showMessage('⚠️ Funcția de redenumire necesită endpoint pe server', 'error');
         }
 
         async function deleteCategory(category) {

@@ -63,12 +63,13 @@ async function initDatabase() {
 app.get('/', (req, res) => {
   res.json({
     message: 'Timber Inventory API with Categories',
-    version: '2.1.0',
+    version: '3.0.0',
     status: 'running',
     endpoints: {
       upload: 'POST /api/upload',
       categories: 'GET /api/categories',
       datasets: 'GET /api/datasets?category=xxx',
+      search: 'GET /api/search?q=xxx',
       data: 'GET /api/data/:filename',
       delete: 'DELETE /api/data/:id'
     }
@@ -97,7 +98,7 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
-// Upload CSV endpoint
+// Upload CSV endpoint with duplicate check
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -106,14 +107,30 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   const client = await pool.connect();
   
   try {
+    const category = req.body.category || 'general';
+    const filename = req.file.originalname;
+
+    // Check for duplicate
+    const duplicateCheck = await client.query(
+      'SELECT id FROM csv_files WHERE filename = $1 AND category = $2',
+      [filename, category]
+    );
+
+    if (duplicateCheck.rows.length > 0) {
+      client.release();
+      return res.status(409).json({ 
+        error: 'Duplicate file',
+        message: `Fișierul "${filename}" există deja în categoria "${category}"`,
+        existingId: duplicateCheck.rows[0].id
+      });
+    }
+
     await client.query('BEGIN');
 
-    const category = req.body.category || 'general';
-    
     // Insert file record
     const fileResult = await client.query(
       'INSERT INTO csv_files (filename, category) VALUES ($1, $2) RETURNING id',
-      [req.file.originalname, category]
+      [filename, category]
     );
     const fileId = fileResult.rows[0].id;
 
@@ -142,7 +159,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     res.json({
       success: true,
       message: 'File uploaded successfully',
-      filename: req.file.originalname,
+      filename: filename,
       category: category,
       rows: rows.length,
       fileId: fileId
@@ -190,6 +207,42 @@ app.get('/api/datasets', async (req, res) => {
   } catch (err) {
     console.error('Error fetching datasets:', err);
     res.status(500).json({ error: 'Failed to fetch datasets' });
+  }
+});
+
+// Search datasets
+app.get('/api/search', async (req, res) => {
+  try {
+    const searchTerm = req.query.q;
+    
+    if (!searchTerm) {
+      return res.status(400).json({ error: 'Search term required' });
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        f.id,
+        f.filename,
+        f.category,
+        f.uploaded_at,
+        COUNT(d.id) as record_count
+      FROM csv_files f
+      LEFT JOIN csv_data d ON f.id = d.file_id
+      WHERE 
+        f.filename ILIKE $1 OR 
+        f.category ILIKE $1
+      GROUP BY f.id, f.filename, f.category, f.uploaded_at
+      ORDER BY f.uploaded_at DESC
+    `, [`%${searchTerm}%`]);
+
+    res.json({
+      results: result.rows,
+      count: result.rows.length,
+      searchTerm: searchTerm
+    });
+  } catch (err) {
+    console.error('Search error:', err);
+    res.status(500).json({ error: 'Search failed' });
   }
 });
 
