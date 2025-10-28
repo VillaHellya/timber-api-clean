@@ -209,7 +209,7 @@
                 const data = await response.json();
                 
                 // Default categories + loaded ones
-                const defaultCategories = ['apv', 'volume', 'inventar', 'dealuri'];
+                const defaultCategories = [];
                 const allCategories = [...new Set([...defaultCategories, ...data.categories])];
                 
                 categorySelect.innerHTML = '<option value="">Selectează categorie...</option>';
