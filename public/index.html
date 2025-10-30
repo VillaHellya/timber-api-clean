@@ -6,171 +6,119 @@
     <title>Timber API - Upload CSV</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
+        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
+
+        /* LOGIN SCREEN */
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
             background: white;
             border-radius: 15px;
-            padding: 30px;
+            padding: 40px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-        h1 { color: #333; margin-bottom: 10px; }
-        .subtitle { color: #666; margin-bottom: 30px; }
-        
-        .search-box {
-            margin: 20px 0;
-            position: relative;
-        }
-        .search-input {
-            width: 100%;
-            padding: 12px 45px 12px 15px;
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-        .search-input:focus {
-            outline: none;
-            border-color: #764ba2;
-            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
-        }
-        .search-clear {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            display: none;
-        }
-        .search-clear.show {
-            display: block;
-        }
-        
-        .upload-area {
-            border: 3px dashed #667eea;
-            border-radius: 10px;
-            padding: 40px;
+
+        .login-container h1 {
+            color: #333;
+            margin-bottom: 10px;
             text-align: center;
-            background: #f8f9ff;
-            cursor: pointer;
-            transition: all 0.3s;
-            position: relative;
         }
-        .upload-area:hover { background: #eef1ff; border-color: #764ba2; }
-        .upload-area.dragover { background: #e0e7ff; border-color: #4f46e5; }
-        input[type="file"] { display: none; }
-        
-        .upload-options {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-            justify-content: center;
+
+        .login-container p {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
         }
-        .upload-btn-style {
-            background: #667eea;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .upload-btn-style:hover { background: #5568d3; }
-        
-        .category-section {
-            margin-top: 20px;
-            padding: 20px;
-            background: #f8f9ff;
-            border-radius: 10px;
-        }
-        .category-section h3 { color: #667eea; margin-bottom: 15px; }
-        
-        select, input[type="text"] {
-            padding: 10px;
-            border-radius: 8px;
-            border: 2px solid #667eea;
-            font-size: 16px;
-            width: 100%;
-        }
-        
-        .new-category-row {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .new-category-row input { flex: 1; }
-        .new-category-row button {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            white-space: nowrap;
-        }
-        .new-category-row button:hover { background: #5568d3; }
-        
-        .selected-info {
-            margin-top: 10px;
-            padding: 10px;
-            background: #e0e7ff;
-            border-radius: 8px;
-            color: #667eea;
-            font-weight: bold;
+
+        /* MAIN APP */
+        .main-app {
             display: none;
+            max-width: 1400px;
+            margin: 0 auto;
         }
-        .selected-info.show { display: block; }
-        
-        .file-list {
-            margin-top: 15px;
-            padding: 15px;
-            background: #f0f0f0;
-            border-radius: 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-        }
-        .file-list.show { display: block; }
-        .file-item {
-            padding: 8px;
+
+        .header {
             background: white;
-            margin: 5px 0;
-            border-radius: 5px;
+            border-radius: 15px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .file-item button {
+
+        .header h1 {
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-badge {
+            background: #667eea;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .logout-btn {
             background: #dc3545;
             color: white;
             border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
+            padding: 8px 16px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 14px;
         }
-        .file-item.duplicate {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
+
+        .logout-btn:hover {
+            background: #c82333;
         }
-        .file-item.duplicate .warning {
-            color: #856404;
-            font-weight: bold;
-            margin-left: 10px;
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
         }
-        
+
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="text"], input[type="password"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus, select:focus {
+            outline: none;
+            border-color: #764ba2;
+        }
+
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -179,124 +127,162 @@
             border-radius: 8px;
             cursor: pointer;
             font-size: 16px;
-            margin-top: 20px;
             transition: transform 0.2s;
             width: 100%;
         }
-        .btn:hover { transform: translateY(-2px); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        .datasets {
-            margin-top: 40px;
-            border-top: 2px solid #eee;
-            padding-top: 30px;
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
         }
-        
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .search-box input {
+            padding-left: 45px;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 15px;
+            font-size: 20px;
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+            margin-bottom: 20px;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .drop-zone-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .category-section {
+            margin: 30px 0;
+        }
+
         .category-group {
-            margin: 20px 0;
-            border: 2px solid #e0e7ff;
-            border-radius: 10px;
-            overflow: hidden;
+            margin-bottom: 30px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 20px;
         }
-        
+
         .category-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px 20px;
-            cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            user-select: none;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
         }
-        .category-header:hover { opacity: 0.9; }
-        
+
         .category-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex: 1;
-        }
-        .category-name {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
+            color: #667eea;
         }
-        .category-count {
+
+        .file-count {
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
             font-size: 14px;
-            opacity: 0.9;
         }
-        
-        .category-actions {
-            display: flex;
+
+        .dataset-list {
+            display: grid;
             gap: 10px;
         }
-        .edit-category-btn, .delete-category-btn {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 1px solid white;
-            padding: 5px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .edit-category-btn:hover, .delete-category-btn:hover {
-            background: rgba(255,255,255,0.3);
-        }
-        
-        .category-arrow {
-            transition: transform 0.3s;
-        }
-        .category-arrow.expanded {
-            transform: rotate(180deg);
-        }
-        
-        .category-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-            background: #f8f9fa;
-        }
-        .category-content.expanded {
-            max-height: 2000px;
-        }
-        
+
         .dataset-item {
-            padding: 15px 20px;
-            margin: 0;
-            border-bottom: 1px solid #e0e7ff;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border: 1px solid #e0e7ff;
+            transition: transform 0.2s;
         }
-        .dataset-item:last-child {
-            border-bottom: none;
+
+        .dataset-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.2);
         }
-        
-        .dataset-info { flex: 1; }
-        .dataset-name { font-weight: bold; color: #333; margin-bottom: 5px; }
-        .dataset-meta { color: #666; font-size: 14px; }
-        
+
+        .dataset-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .dataset-meta {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
         .delete-btn {
             background: #dc3545;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 8px 15px;
             border-radius: 5px;
             cursor: pointer;
+            font-size: 14px;
         }
-        .delete-btn:hover { background: #c82333; }
-        
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
         .message {
             padding: 15px;
             border-radius: 8px;
             margin: 20px 0;
             display: none;
         }
-        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .message.warning { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
-        .message.show { display: block; }
-        
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.show {
+            display: block;
+        }
+
         .loader {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #667eea;
@@ -307,400 +293,299 @@
             margin: 20px auto;
             display: none;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        .no-results {
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
             text-align: center;
             padding: 40px;
-            color: #666;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .password-toggle {
+            position: relative;
+        }
+
+        .password-toggle button {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 5px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🌲 Timber Inventory API</h1>
+    <!-- LOGIN SCREEN -->
+    <div class="login-container" id="loginContainer">
+        <h1>🌲 Timber Inventory</h1>
+        <p>Autentificare necesară</p>
         
-        <div class="search-box">
-            <input type="text" 
-                   id="searchInput" 
-                   class="search-input"
-                   placeholder="🔍 Caută fișiere sau categorii...">
-            <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
-        </div>
-        
-        <p class="subtitle">Upload și gestionează fișiere CSV cu categorii</p>
-
-        <div class="upload-area" id="uploadArea">
-            <p style="font-size: 48px; margin-bottom: 10px;">📁</p>
-            <p style="font-size: 18px; color: #667eea; margin-bottom: 10px;">
-                <strong>Click, drag & drop sau upload multiple/folder</strong>
-            </p>
-            <p style="color: #666;">Fișiere CSV acceptate</p>
-            <input type="file" id="fileInput" accept=".csv" multiple>
-            <input type="file" id="folderInput" webkitdirectory directory multiple>
+        <form id="loginForm">
+            <input type="text" id="loginUsername" placeholder="Username" required>
             
-            <div class="upload-options">
-                <button class="upload-btn-style" onclick="document.getElementById('fileInput').click()">
-                    📄 Selectează fișiere
-                </button>
-                <button class="upload-btn-style" onclick="document.getElementById('folderInput').click()">
-                    📁 Selectează folder
-                </button>
+            <div class="password-toggle">
+                <input type="password" id="loginPassword" placeholder="Parolă" required>
+                <button type="button" onclick="toggleLoginPassword()">👁️</button>
+            </div>
+            
+            <button type="submit" class="btn">Login</button>
+        </form>
+        
+        <div class="message" id="loginMessage"></div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div class="main-app" id="mainApp">
+        <div class="header">
+            <h1>🌲 Timber Inventory API</h1>
+            <div class="user-info">
+                <span class="user-badge" id="currentUser"></span>
+                <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
         </div>
 
-        <div class="file-list" id="fileList"></div>
+        <div class="container">
+            <h2>📤 Upload și gestionare fișiere CSV</h2>
+            <p style="color: #666; margin-bottom: 30px;">Upload fișiere CSV cu categorii</p>
 
-        <div class="category-section">
-            <h3>📂 Selectează sau creează categorie</h3>
-            
-            <select id="categorySelect">
-                <option value="">Se încarcă categorii...</option>
-            </select>
-            
-            <div class="new-category-row">
-                <input type="text" 
-                       id="newCategoryInput" 
-                       placeholder="Sau creează categorie nouă..." />
-                <button id="useNewCategory">Folosește</button>
+            <div class="message" id="message"></div>
+            <div class="loader" id="loader"></div>
+
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📁</div>
+                <h3>Click, drag & drop sau upload multiple/folder</h3>
+                <p style="color: #666; margin-top: 10px;">Fișiere CSV acceptate</p>
+                <input type="file" id="fileInput" accept=".csv" multiple style="display: none;">
+                <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
+                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                    <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: auto;">📄 Selectează fișiere</button>
+                    <button class="btn" onclick="document.getElementById('folderInput').click()" style="width: auto;">📂 Selectează folder</button>
+                </div>
             </div>
-            
-            <div class="selected-info" id="selectedInfo"></div>
+
+            <div class="category-section">
+                <h3>📂 Selectează sau creează categorie</h3>
+                <select id="categorySelect">
+                    <option value="">Selectează categorie...</option>
+                </select>
+                <input type="text" id="newCategory" placeholder="Sau creează categorie nouă...">
+                <button class="btn" id="uploadBtn" disabled>Folosește</button>
+            </div>
         </div>
 
-        <div class="loader" id="loader"></div>
-        <div class="message" id="message"></div>
+        <div class="container">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" placeholder="Caută fișiere sau categorii...">
+            </div>
 
-        <button class="btn" id="uploadBtn" style="display:none;">Upload CSV</button>
-
-        <div class="datasets">
             <h2>📊 Datasets organizate pe categorii</h2>
-            <div id="datasetsList"></div>
+            <div id="datasetsContainer"></div>
         </div>
     </div>
 
     <script>
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const folderInput = document.getElementById('folderInput');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const message = document.getElementById('message');
-        const loader = document.getElementById('loader');
-        const datasetsList = document.getElementById('datasetsList');
-        const categorySelect = document.getElementById('categorySelect');
-        const newCategoryInput = document.getElementById('newCategoryInput');
-        const useNewCategoryBtn = document.getElementById('useNewCategory');
-        const selectedInfo = document.getElementById('selectedInfo');
-        const fileList = document.getElementById('fileList');
-        const searchInput = document.getElementById('searchInput');
-        const searchClear = document.getElementById('searchClear');
-
+        let token = localStorage.getItem('timberToken');
+        let currentUser = null;
         let selectedFiles = [];
-        let selectedCategory = '';
         let allDatasets = [];
-        let searchTimeout = null;
 
-        // Search functionality
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            const query = e.target.value.trim();
+        // Check if already logged in
+        if (token) {
+            verifyToken();
+        }
+
+        // LOGIN
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
             
-            if (query.length > 0) {
-                searchClear.classList.add('show');
-                searchTimeout = setTimeout(() => performSearch(query), 300);
-            } else {
-                searchClear.classList.remove('show');
-                displayDatasets(allDatasets);
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    token = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('timberToken', token);
+                    
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('mainApp').style.display = 'block';
+                    document.getElementById('currentUser').textContent = `👤 ${data.user.full_name || data.user.username}`;
+                    
+                    loadCategories();
+                    loadDatasets();
+                } else {
+                    showLoginMessage(data.error || 'Login eșuat', 'error');
+                }
+            } catch (err) {
+                showLoginMessage('Eroare de conexiune', 'error');
             }
         });
 
-        async function performSearch(query) {
+        async function verifyToken() {
             try {
-                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-                const data = await response.json();
-                
-                if (data.results.length === 0) {
-                    datasetsList.innerHTML = `
-                        <div class="no-results">
-                            <p style="font-size: 48px; margin-bottom: 10px;">🔍</p>
-                            <p>Niciun rezultat pentru "${query}"</p>
-                        </div>
-                    `;
+                const response = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data;
+                    
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('mainApp').style.display = 'block';
+                    document.getElementById('currentUser').textContent = `👤 ${data.full_name || data.username}`;
+                    
+                    loadCategories();
+                    loadDatasets();
                 } else {
-                    displayDatasets(data.results);
+                    logout();
                 }
             } catch (err) {
-                console.error('Search error:', err);
+                logout();
             }
         }
 
-        function clearSearch() {
-            searchInput.value = '';
-            searchClear.classList.remove('show');
-            displayDatasets(allDatasets);
+        function logout() {
+            localStorage.removeItem('timberToken');
+            token = null;
+            currentUser = null;
+            document.getElementById('loginContainer').style.display = 'block';
+            document.getElementById('mainApp').style.display = 'none';
+            document.getElementById('loginForm').reset();
         }
 
-        // Load categories
+        function toggleLoginPassword() {
+            const input = document.getElementById('loginPassword');
+            const button = event.target;
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                button.textContent = '👁️';
+            }
+        }
+
+        function showLoginMessage(text, type) {
+            const msg = document.getElementById('loginMessage');
+            msg.textContent = text;
+            msg.className = `message ${type} show`;
+            setTimeout(() => msg.classList.remove('show'), 5000);
+        }
+
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `message ${type} show`;
+            setTimeout(() => msg.classList.remove('show'), 5000);
+        }
+
+        // LOAD CATEGORIES
         async function loadCategories() {
             try {
-                const response = await fetch('/api/categories');
-                const data = await response.json();
-                
-                categorySelect.innerHTML = '<option value="">Selectează categorie...</option>';
-                
-                data.categories.sort().forEach(cat => {
-                    const option = document.createElement('option');
-                    option.value = cat;
-                    option.textContent = cat.toUpperCase();
-                    categorySelect.appendChild(option);
+                const response = await fetch('/api/categories', {
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
-                
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const select = document.getElementById('categorySelect');
+                    select.innerHTML = '<option value="">Selectează categorie...</option>';
+                    
+                    data.categories.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat;
+                        option.textContent = cat;
+                        select.appendChild(option);
+                    });
+                }
             } catch (err) {
                 console.error('Error loading categories:', err);
             }
         }
 
-        // Category selection
-        categorySelect.addEventListener('change', (e) => {
-            selectedCategory = e.target.value;
-            updateSelectedInfo();
-        });
-
-        // New category
-        useNewCategoryBtn.addEventListener('click', () => {
-            const newCat = newCategoryInput.value.trim().toLowerCase();
-            if (newCat) {
-                selectedCategory = newCat;
-                categorySelect.value = '';
-                newCategoryInput.value = '';
-                updateSelectedInfo();
-            }
-        });
-
-        function updateSelectedInfo() {
-            if (selectedCategory) {
-                selectedInfo.textContent = `✓ Categorie: ${selectedCategory.toUpperCase()}`;
-                selectedInfo.classList.add('show');
-            } else {
-                selectedInfo.classList.remove('show');
-            }
-        }
-
-        // File selection
-        async function handleFiles(files) {
-            selectedFiles = Array.from(files).filter(f => f.name.endsWith('.csv'));
-            
-            if (selectedFiles.length > 0 && selectedCategory) {
-                // Check for duplicates
-                await checkDuplicates();
-                showFileList();
-                uploadBtn.style.display = 'block';
-                uploadBtn.textContent = `Upload ${selectedFiles.length} fișier(e)`;
-            } else if (selectedFiles.length > 0) {
-                showFileList();
-                uploadBtn.style.display = 'block';
-                uploadBtn.textContent = `Upload ${selectedFiles.length} fișier(e)`;
-            }
-        }
-
-        async function checkDuplicates() {
-            if (!selectedCategory) return;
-            
-            try {
-                const response = await fetch(`/api/datasets?category=${selectedCategory}`);
-                const data = await response.json();
-                const existingFiles = data.datasets.map(d => d.filename);
-                
-                selectedFiles.forEach(file => {
-                    file.isDuplicate = existingFiles.includes(file.name);
-                });
-            } catch (err) {
-                console.error('Error checking duplicates:', err);
-            }
-        }
-
-        function showFileList() {
-            fileList.innerHTML = selectedFiles.map((file, index) => `
-                <div class="file-item ${file.isDuplicate ? 'duplicate' : ''}">
-                    <span>
-                        ${file.name} (${(file.size / 1024).toFixed(2)} KB)
-                        ${file.isDuplicate ? '<span class="warning">⚠️ DUPLICAT</span>' : ''}
-                    </span>
-                    <button onclick="removeFile(${index})">✕</button>
-                </div>
-            `).join('');
-            fileList.classList.add('show');
-            
-            const hasDuplicates = selectedFiles.some(f => f.isDuplicate);
-            if (hasDuplicates) {
-                showMessage('⚠️ Unele fișiere există deja în această categorie!', 'warning');
-            }
-        }
-
-        function removeFile(index) {
-            selectedFiles.splice(index, 1);
-            if (selectedFiles.length > 0) {
-                showFileList();
-                uploadBtn.textContent = `Upload ${selectedFiles.length} fișier(e)`;
-            } else {
-                fileList.classList.remove('show');
-                uploadBtn.style.display = 'none';
-            }
-        }
-
-        // Drag & drop
-        uploadArea.addEventListener('click', () => fileInput.click());
-
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
-        });
-
-        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-        folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-        // Upload
-        uploadBtn.addEventListener('click', async () => {
-            if (selectedFiles.length === 0) return;
-            
-            if (!selectedCategory) {
-                showMessage('❌ Selectează sau creează o categorie!', 'error');
-                return;
-            }
-
-            const hasDuplicates = selectedFiles.some(f => f.isDuplicate);
-            if (hasDuplicates) {
-                const confirm = window.confirm('Unele fișiere există deja. Vrei să sari peste duplicate?');
-                if (!confirm) return;
-            }
-
-            loader.style.display = 'block';
-            uploadBtn.disabled = true;
-
-            let successCount = 0;
-            let errorCount = 0;
-            let skippedCount = 0;
-
-            for (const file of selectedFiles) {
-                if (file.isDuplicate) {
-                    skippedCount++;
-                    continue;
-                }
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('category', selectedCategory);
-
-                try {
-                    const response = await fetch('/api/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (response.ok) {
-                        successCount++;
-                    } else if (response.status === 409) {
-                        skippedCount++;
-                    } else {
-                        errorCount++;
-                    }
-                } catch (err) {
-                    errorCount++;
-                }
-            }
-
-            loader.style.display = 'none';
-            uploadBtn.disabled = false;
-
-            let msg = '';
-            if (successCount > 0) msg += `✅ ${successCount} uploadate`;
-            if (skippedCount > 0) msg += ` | ⚠️ ${skippedCount} duplicate sărite`;
-            if (errorCount > 0) msg += ` | ❌ ${errorCount} erori`;
-
-            showMessage(msg, successCount > 0 ? 'success' : 'warning');
-
-            if (successCount > 0) {
-                selectedFiles = [];
-                selectedCategory = '';
-                uploadBtn.style.display = 'none';
-                fileInput.value = '';
-                folderInput.value = '';
-                categorySelect.value = '';
-                selectedInfo.classList.remove('show');
-                fileList.classList.remove('show');
-                loadCategories();
-                loadDatasets();
-            }
-        });
-
-        function showMessage(text, type) {
-            message.textContent = text;
-            message.className = `message ${type} show`;
-            setTimeout(() => message.classList.remove('show'), 5000);
-        }
-
-        // Load datasets
+        // LOAD DATASETS
         async function loadDatasets() {
-            try {
-                const response = await fetch('/api/datasets');
-                const data = await response.json();
-                allDatasets = data.datasets;
+            document.getElementById('loader').style.display = 'block';
 
-                displayDatasets(allDatasets);
+            try {
+                const response = await fetch('/api/datasets', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    allDatasets = data.datasets;
+                    displayDatasets(allDatasets);
+                }
             } catch (err) {
-                console.error('Error loading datasets:', err);
+                showMessage('Eroare la încărcarea datasets', 'error');
+            } finally {
+                document.getElementById('loader').style.display = 'none';
             }
         }
 
         function displayDatasets(datasets) {
+            const container = document.getElementById('datasetsContainer');
+            
             if (datasets.length === 0) {
-                datasetsList.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Niciun dataset încărcat</p>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <h3>Niciun dataset găsit</h3>
+                        <p>Uploadează primul fișier CSV!</p>
+                    </div>
+                `;
                 return;
             }
 
-            // Group by category
-            const grouped = {};
-            datasets.forEach(dataset => {
-                if (!grouped[dataset.category]) {
-                    grouped[dataset.category] = [];
-                }
-                grouped[dataset.category].push(dataset);
-            });
+            const grouped = datasets.reduce((acc, item) => {
+                if (!acc[item.category]) acc[item.category] = [];
+                acc[item.category].push(item);
+                return acc;
+            }, {});
 
-            // Render
-            datasetsList.innerHTML = Object.keys(grouped).sort().map(category => `
+            container.innerHTML = Object.entries(grouped).map(([category, files]) => `
                 <div class="category-group">
-                    <div class="category-header" onclick="toggleCategory('${category}')">
-                        <div class="category-title">
-                            <span class="category-name" id="catname-${category}">${category.toUpperCase()}</span>
-                            <span class="category-count">(${grouped[category].length} fișier${grouped[category].length > 1 ? 'e' : ''})</span>
-                        </div>
-                        <div class="category-actions" onclick="event.stopPropagation()">
-                            <button class="delete-category-btn" onclick="deleteCategory('${category}')">🗑️ Șterge tot</button>
-                        </div>
-                        <span class="category-arrow" id="arrow-${category}">▼</span>
+                    <div class="category-header">
+                        <span class="category-title">${category}</span>
+                        <span class="file-count">${files.length} fișiere</span>
                     </div>
-                    <div class="category-content" id="content-${category}">
-                        ${grouped[category].map(dataset => `
+                    <div class="dataset-list">
+                        ${files.map(file => `
                             <div class="dataset-item">
-                                <div class="dataset-info">
-                                    <div class="dataset-name">${dataset.filename}</div>
+                                <div>
+                                    <div class="dataset-name">${file.filename}</div>
                                     <div class="dataset-meta">
-                                        ${dataset.record_count} înregistrări • 
-                                        ${new Date(dataset.uploaded_at).toLocaleString('ro-RO')}
+                                        📊 ${file.record_count} înregistrări | 
+                                        📅 ${new Date(file.uploaded_at).toLocaleDateString('ro-RO')}
                                     </div>
                                 </div>
-                                <button class="delete-btn" onclick="deleteDataset(${dataset.id})">Șterge</button>
+                                ${currentUser.role === 'admin' || hasDeletePermission(category) ? 
+                                    `<button class="delete-btn" onclick="deleteDataset(${file.id}, '${file.filename}')">🗑️ Șterge</button>` : 
+                                    ''}
                             </div>
                         `).join('')}
                     </div>
@@ -708,51 +593,143 @@
             `).join('');
         }
 
-        function toggleCategory(category) {
-            const content = document.getElementById(`content-${category}`);
-            const arrow = document.getElementById(`arrow-${category}`);
-            content.classList.toggle('expanded');
-            arrow.classList.toggle('expanded');
+        function hasDeletePermission(category) {
+            // Check if user has delete permission for this category
+            // For now, return false for non-admin users
+            return false;
         }
 
-        async function deleteCategory(category) {
-            if (!confirm(`Sigur vrei să ștergi TOATE fișierele din categoria "${category}"?`)) return;
+        // SEARCH
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filtered = allDatasets.filter(item => 
+                item.filename.toLowerCase().includes(searchTerm) ||
+                item.category.toLowerCase().includes(searchTerm)
+            );
+            displayDatasets(filtered);
+        });
 
-            try {
-                const response = await fetch('/api/datasets');
-                const data = await response.json();
-                const toDelete = data.datasets.filter(d => d.category === category);
+        // FILE UPLOAD
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const folderInput = document.getElementById('folderInput');
 
-                for (const dataset of toDelete) {
-                    await fetch(`/api/data/${dataset.id}`, { method: 'DELETE' });
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files).filter(f => f.name.endsWith('.csv'));
+            
+            if (selectedFiles.length === 0) {
+                showMessage('Niciun fișier CSV selectat', 'error');
+                return;
+            }
+
+            showMessage(`${selectedFiles.length} fișiere CSV selectate`, 'success');
+            document.getElementById('uploadBtn').disabled = false;
+        }
+
+        document.getElementById('uploadBtn').addEventListener('click', async () => {
+            const category = document.getElementById('categorySelect').value || 
+                           document.getElementById('newCategory').value.trim();
+
+            if (!category) {
+                showMessage('Selectează sau creează o categorie', 'error');
+                return;
+            }
+
+            if (selectedFiles.length === 0) {
+                showMessage('Niciun fișier selectat', 'error');
+                return;
+            }
+
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('loader').style.display = 'block';
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const file of selectedFiles) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('category', category);
+
+                try {
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        successCount++;
+                    } else {
+                        const error = await response.json();
+                        if (response.status === 409) {
+                            console.log(`Duplicate: ${file.name}`);
+                        }
+                        errorCount++;
+                    }
+                } catch (err) {
+                    errorCount++;
                 }
+            }
 
-                showMessage('✅ Categorie ștearsă', 'success');
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('uploadBtn').disabled = false;
+
+            if (successCount > 0) {
+                showMessage(`✅ ${successCount} fișiere uploadate cu succes!`, 'success');
                 loadCategories();
                 loadDatasets();
-            } catch (err) {
-                showMessage(`❌ Eroare: ${err.message}`, 'error');
+                selectedFiles = [];
+                fileInput.value = '';
+                folderInput.value = '';
             }
-        }
 
-        async function deleteDataset(id) {
-            if (!confirm('Sigur vrei să ștergi acest dataset?')) return;
+            if (errorCount > 0) {
+                showMessage(`⚠️ ${errorCount} fișiere au eșuat (duplicate sau erori)`, 'error');
+            }
+        });
+
+        // DELETE DATASET
+        async function deleteDataset(id, filename) {
+            if (!confirm(`Sigur vrei să ștergi "${filename}"?`)) return;
 
             try {
-                const response = await fetch(`/api/data/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/data/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
                 if (response.ok) {
-                    showMessage('✅ Dataset șters', 'success');
-                    loadCategories();
+                    showMessage('Dataset șters cu succes', 'success');
                     loadDatasets();
+                } else {
+                    const error = await response.json();
+                    showMessage(error.error || 'Eroare la ștergere', 'error');
                 }
             } catch (err) {
-                showMessage(`❌ Eroare: ${err.message}`, 'error');
+                showMessage('Eroare de conexiune', 'error');
             }
         }
-
-        // Load on page load
-        loadCategories();
-        loadDatasets();
     </script>
 </body>
 </html>
