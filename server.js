@@ -34,36 +34,29 @@ const upload = multer({
 
 async function initDatabase() {
   try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS companies (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, cui VARCHAR(50), address TEXT, phone VARCHAR(50), email VARCHAR(255), is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS csv_files (id SERIAL PRIMARY KEY, filename VARCHAR(255) NOT NULL, category VARCHAR(50) DEFAULT 'general', uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS csv_data (id SERIAL PRIMARY KEY, file_id INTEGER REFERENCES csv_files(id) ON DELETE CASCADE, row_data JSONB NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, full_name VARCHAR(100), email VARCHAR(255), role VARCHAR(20) DEFAULT 'user', is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, full_name VARCHAR(100), email VARCHAR(255), company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL, role VARCHAR(20) DEFAULT 'user', is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS user_categories (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, category VARCHAR(50) NOT NULL, can_read BOOLEAN DEFAULT true, can_write BOOLEAN DEFAULT false, can_delete BOOLEAN DEFAULT false, UNIQUE(user_id, category))`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS licenses (id SERIAL PRIMARY KEY, license_key VARCHAR(50) UNIQUE NOT NULL, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, company_name VARCHAR(100), max_devices INTEGER DEFAULT 3, grace_period_days INTEGER DEFAULT 7, expires_at TIMESTAMP, is_active BOOLEAN DEFAULT true, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS licenses (id SERIAL PRIMARY KEY, license_key VARCHAR(50) UNIQUE NOT NULL, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL, company_name VARCHAR(100), max_devices INTEGER DEFAULT 3, grace_period_days INTEGER DEFAULT 7, expires_at TIMESTAMP, is_active BOOLEAN DEFAULT true, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS license_devices (id SERIAL PRIMARY KEY, license_id INTEGER REFERENCES licenses(id) ON DELETE CASCADE, device_id VARCHAR(255) NOT NULL, device_name VARCHAR(100), device_model VARCHAR(100), activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(license_id, device_id))`);
     
-    try {
-      await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS grace_period_days INTEGER DEFAULT 7`);
-    } catch (err) {}
-    
-    try {
-      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
-    } catch (err) {}
+    try { await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS grace_period_days INTEGER DEFAULT 7`); } catch (err) {}
+    try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)`); } catch (err) {}
+    try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL`); } catch (err) {}
+    try { await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL`); } catch (err) {}
 
-    console.log('✅ Database tables initialized with email support');
+    console.log('✅ Database tables initialized with companies support');
 
     try {
       const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
       if (adminCheck.rows.length === 0) {
         const hashedPassword = await bcrypt.hash('admin123', 10);
         await pool.query('INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4)', ['admin', hashedPassword, 'Administrator', 'admin']);
-        console.log('✅ Default admin created (username: admin, password: admin123)');
-      } else {
-        console.log('✅ Default admin already exists');
+        console.log('✅ Default admin created');
       }
-    } catch (adminErr) {
-      console.error('⚠️ Admin creation error (non-fatal):', adminErr.message);
-    }
-
+    } catch (adminErr) {}
     console.log('✅ Database initialization complete');
   } catch (err) {
     console.error('❌ Database initialization error:', err);
@@ -92,7 +85,7 @@ const checkCategoryAccess = (permission) => {
     if (!category) return res.status(400).json({ error: 'Category required' });
     try {
       const result = await pool.query(`SELECT ${permission} FROM user_categories WHERE user_id = $1 AND category = $2`, [req.user.id, category]);
-      if (result.rows.length === 0 || !result.rows[0][permission]) return res.status(403).json({ error: 'Permission denied for this category' });
+      if (result.rows.length === 0 || !result.rows[0][permission]) return res.status(403).json({ error: 'Permission denied' });
       next();
     } catch (err) {
       res.status(500).json({ error: 'Permission check failed' });
@@ -101,7 +94,7 @@ const checkCategoryAccess = (permission) => {
 };
 
 app.get('/', (req, res) => {
-  res.json({message: 'Timber Inventory API with Email Support', version: '5.2.0', status: 'running', features: ['offline_mode', 'grace_period', 'license_management', 'email_support']});
+  res.json({message: 'Timber API with Companies', version: '6.0.0', status: 'running', features: ['companies', 'users', 'licenses', 'offline_mode']});
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -116,40 +109,102 @@ app.post('/api/auth/login', async (req, res) => {
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({token: token, user: {id: user.id, username: user.username, full_name: user.full_name, email: user.email, role: user.role}});
   } catch (err) {
-    console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
   }
 });
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.email, u.role, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN user_categories uc ON u.id = uc.user_id WHERE u.id = $1 GROUP BY u.id`, [req.user.id]);
+    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.email, u.role, u.company_id, c.name as company_name, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN companies c ON u.company_id = c.id LEFT JOIN user_categories uc ON u.id = uc.user_id WHERE u.id = $1 GROUP BY u.id, c.name`, [req.user.id]);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Failed to get user info' });
   }
 });
 
+app.get('/api/admin/companies', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  try {
+    const result = await pool.query(`SELECT c.*, COUNT(DISTINCT u.id) as user_count, COUNT(DISTINCT l.id) as license_count FROM companies c LEFT JOIN users u ON c.id = u.company_id LEFT JOIN licenses l ON c.id = l.company_id GROUP BY c.id ORDER BY c.created_at DESC`);
+    res.json({ companies: result.rows, total: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch companies' });
+  }
+});
+
+app.post('/api/admin/companies', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  const { name, cui, address, phone, email } = req.body;
+  if (!name) return res.status(400).json({ error: 'Company name required' });
+  try {
+    const result = await pool.query('INSERT INTO companies (name, cui, address, phone, email) VALUES ($1, $2, $3, $4, $5) RETURNING *', [name, cui || null, address || null, phone || null, email || null]);
+    res.json({ success: true, company: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create company' });
+  }
+});
+
+app.put('/api/admin/companies/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  const { id } = req.params;
+  const { name, cui, address, phone, email, is_active } = req.body;
+  try {
+    const result = await pool.query('UPDATE companies SET name = $1, cui = $2, address = $3, phone = $4, email = $5, is_active = $6 WHERE id = $7 RETURNING *', [name, cui || null, address || null, phone || null, email || null, is_active, id]);
+    res.json({ success: true, company: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update company' });
+  }
+});
+
+app.delete('/api/admin/companies/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  try {
+    await pool.query('DELETE FROM companies WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete company' });
+  }
+});
+
+app.get('/api/admin/companies/:id/users', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  try {
+    const result = await pool.query('SELECT id, username, full_name, email, role, is_active, created_at FROM users WHERE company_id = $1 ORDER BY created_at DESC', [req.params.id]);
+    res.json({ users: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/admin/companies/:id/licenses', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  try {
+    const result = await pool.query(`SELECT l.*, COUNT(ld.id) as active_devices FROM licenses l LEFT JOIN license_devices ld ON l.id = ld.license_id WHERE l.company_id = $1 GROUP BY l.id ORDER BY l.created_at DESC`, [req.params.id]);
+    res.json({ licenses: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch licenses' });
+  }
+});
+
 app.get('/api/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   try {
-    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN user_categories uc ON u.id = uc.user_id GROUP BY u.id ORDER BY u.created_at DESC`);
+    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at, u.company_id, c.name as company_name, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN companies c ON u.company_id = c.id LEFT JOIN user_categories uc ON u.id = uc.user_id GROUP BY u.id, c.name ORDER BY u.created_at DESC`);
     res.json({ users: result.rows, total: result.rows.length });
   } catch (err) {
-    console.error('Error fetching users:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
 app.post('/api/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-  const { username, password, full_name, email, role, categories } = req.body;
+  const { username, password, full_name, email, company_id, role, categories } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const hashedPassword = await bcrypt.hash(password, 10);
-    const userResult = await client.query('INSERT INTO users (username, password_hash, full_name, email, role) VALUES ($1, $2, $3, $4, $5) RETURNING id', [username, hashedPassword, full_name || username, email || null, role || 'user']);
+    const userResult = await client.query('INSERT INTO users (username, password_hash, full_name, email, company_id, role) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id', [username, hashedPassword, full_name || username, email || null, company_id || null, role || 'user']);
     const userId = userResult.rows[0].id;
     if (categories && categories.length > 0) {
       for (const cat of categories) {
@@ -157,10 +212,9 @@ app.post('/api/admin/users', authenticateToken, async (req, res) => {
       }
     }
     await client.query('COMMIT');
-    res.json({ success: true, userId: userId, message: 'User created successfully' });
+    res.json({ success: true, userId: userId });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Create user error:', err);
     if (err.constraint === 'users_username_key') {
       res.status(409).json({ error: 'Username already exists' });
     } else {
@@ -174,7 +228,7 @@ app.post('/api/admin/users', authenticateToken, async (req, res) => {
 app.put('/api/admin/users/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   const userId = req.params.id;
-  const { full_name, email, role, is_active, categories, password } = req.body;
+  const { full_name, email, company_id, role, is_active, categories, password } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -183,6 +237,7 @@ app.put('/api/admin/users/:id', authenticateToken, async (req, res) => {
     let paramCount = 1;
     if (full_name !== undefined) { updateQuery += `full_name = $${paramCount}, `; updateParams.push(full_name); paramCount++; }
     if (email !== undefined) { updateQuery += `email = $${paramCount}, `; updateParams.push(email); paramCount++; }
+    if (company_id !== undefined) { updateQuery += `company_id = $${paramCount}, `; updateParams.push(company_id); paramCount++; }
     if (role !== undefined) { updateQuery += `role = $${paramCount}, `; updateParams.push(role); paramCount++; }
     if (is_active !== undefined) { updateQuery += `is_active = $${paramCount}, `; updateParams.push(is_active); paramCount++; }
     if (password) { const hashedPassword = await bcrypt.hash(password, 10); updateQuery += `password_hash = $${paramCount}, `; updateParams.push(hashedPassword); paramCount++; }
@@ -197,10 +252,9 @@ app.put('/api/admin/users/:id', authenticateToken, async (req, res) => {
       }
     }
     await client.query('COMMIT');
-    res.json({ success: true, message: 'User updated successfully' });
+    res.json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Update user error:', err);
     res.status(500).json({ error: 'Failed to update user' });
   } finally {
     client.release();
@@ -213,9 +267,8 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
   if (parseInt(userId) === req.user.id) return res.status(400).json({ error: 'Cannot delete your own account' });
   try {
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
-    res.json({ success: true, message: 'User deleted successfully' });
+    res.json({ success: true });
   } catch (err) {
-    console.error('Delete user error:', err);
     res.status(500).json({ error: 'Failed to delete user' });
   }
 });
@@ -233,7 +286,6 @@ app.get('/api/categories', authenticateToken, async (req, res) => {
     const categories = result.rows.map(row => row.category);
     res.json({ categories: categories, count: categories.length });
   } catch (err) {
-    console.error('Error fetching categories:', err);
     res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
@@ -247,7 +299,7 @@ app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upl
     const duplicateCheck = await client.query('SELECT id FROM csv_files WHERE filename = $1 AND category = $2', [filename, category]);
     if (duplicateCheck.rows.length > 0) {
       client.release();
-      return res.status(409).json({ error: 'Duplicate file', message: `Fișierul "${filename}" există deja în categoria "${category}"` });
+      return res.status(409).json({ error: 'Duplicate file' });
     }
     await client.query('BEGIN');
     const fileResult = await client.query('INSERT INTO csv_files (filename, category) VALUES ($1, $2) RETURNING id', [filename, category]);
@@ -261,10 +313,9 @@ app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upl
       await client.query('INSERT INTO csv_data (file_id, row_data) VALUES ($1, $2)', [fileId, JSON.stringify(row)]);
     }
     await client.query('COMMIT');
-    res.json({success: true, message: 'File uploaded successfully', filename: filename, category: category, rows: rows.length, fileId: fileId});
+    res.json({success: true, filename: filename, category: category, rows: rows.length});
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Upload error:', err);
     res.status(500).json({ error: 'Failed to upload file' });
   } finally {
     client.release();
@@ -290,7 +341,6 @@ app.get('/api/datasets', authenticateToken, async (req, res) => {
     const result = await pool.query(query, params);
     res.json({ datasets: result.rows, total: result.rows.length });
   } catch (err) {
-    console.error('Error fetching datasets:', err);
     res.status(500).json({ error: 'Failed to fetch datasets' });
   }
 });
@@ -307,9 +357,8 @@ app.get('/api/search', authenticateToken, async (req, res) => {
     }
     query += ' GROUP BY f.id ORDER BY f.uploaded_at DESC';
     const result = await pool.query(query, params);
-    res.json({ results: result.rows, count: result.rows.length, searchTerm: searchTerm });
+    res.json({ results: result.rows, count: result.rows.length });
   } catch (err) {
-    console.error('Search error:', err);
     res.status(500).json({ error: 'Search failed' });
   }
 });
@@ -326,7 +375,6 @@ app.get('/api/data/:filename', authenticateToken, async (req, res) => {
     const data = result.rows.map(row => row.row_data);
     res.json({ filename: req.params.filename, count: data.length, data: data });
   } catch (err) {
-    console.error('Error fetching data:', err);
     res.status(500).json({ error: 'Failed to fetch data' });
   }
 });
@@ -341,9 +389,8 @@ app.delete('/api/data/:id', authenticateToken, async (req, res) => {
       if (permCheck.rows.length === 0 || !permCheck.rows[0].can_delete) return res.status(403).json({ error: 'Permission denied' });
     }
     await pool.query('DELETE FROM csv_files WHERE id = $1', [req.params.id]);
-    res.json({ success: true, message: 'Dataset deleted' });
+    res.json({ success: true });
   } catch (err) {
-    console.error('Error deleting dataset:', err);
     res.status(500).json({ error: 'Failed to delete dataset' });
   }
 });
@@ -363,23 +410,21 @@ function generateLicenseKey() {
 app.get('/api/admin/licenses', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   try {
-    const result = await pool.query(`SELECT l.*, u.username, u.full_name, u.email, COUNT(ld.id) as active_devices FROM licenses l LEFT JOIN users u ON l.user_id = u.id LEFT JOIN license_devices ld ON l.id = ld.license_id GROUP BY l.id, u.username, u.full_name, u.email ORDER BY l.created_at DESC`);
+    const result = await pool.query(`SELECT l.*, u.username, u.full_name, u.email, c.name as company_name, COUNT(ld.id) as active_devices FROM licenses l LEFT JOIN users u ON l.user_id = u.id LEFT JOIN companies c ON l.company_id = c.id LEFT JOIN license_devices ld ON l.id = ld.license_id GROUP BY l.id, u.username, u.full_name, u.email, c.name ORDER BY l.created_at DESC`);
     res.json({ licenses: result.rows, total: result.rows.length });
   } catch (err) {
-    console.error('Error fetching licenses:', err);
     res.status(500).json({ error: 'Failed to fetch licenses' });
   }
 });
 
 app.post('/api/admin/licenses', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-  const { user_id, company_name, max_devices, grace_period_days, expires_at, notes } = req.body;
+  const { user_id, company_id, company_name, max_devices, grace_period_days, expires_at, notes } = req.body;
   try {
     const licenseKey = generateLicenseKey();
-    const result = await pool.query(`INSERT INTO licenses (license_key, user_id, company_name, max_devices, grace_period_days, expires_at, notes) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`, [licenseKey, user_id || null, company_name || null, max_devices || 3, grace_period_days || 7, expires_at || null, notes || null]);
+    const result = await pool.query(`INSERT INTO licenses (license_key, user_id, company_id, company_name, max_devices, grace_period_days, expires_at, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`, [licenseKey, user_id || null, company_id || null, company_name || null, max_devices || 3, grace_period_days || 7, expires_at || null, notes || null]);
     res.json({ success: true, license: result.rows[0] });
   } catch (err) {
-    console.error('Create license error:', err);
     res.status(500).json({ error: 'Failed to create license' });
   }
 });
@@ -387,12 +432,11 @@ app.post('/api/admin/licenses', authenticateToken, async (req, res) => {
 app.put('/api/admin/licenses/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   const { id } = req.params;
-  const { user_id, company_name, max_devices, grace_period_days, expires_at, is_active, notes } = req.body;
+  const { user_id, company_id, company_name, max_devices, grace_period_days, expires_at, is_active, notes } = req.body;
   try {
-    const result = await pool.query(`UPDATE licenses SET user_id = $1, company_name = $2, max_devices = $3, grace_period_days = $4, expires_at = $5, is_active = $6, notes = $7 WHERE id = $8 RETURNING *`, [user_id || null, company_name || null, max_devices, grace_period_days || 7, expires_at || null, is_active, notes || null, id]);
+    const result = await pool.query(`UPDATE licenses SET user_id = $1, company_id = $2, company_name = $3, max_devices = $4, grace_period_days = $5, expires_at = $6, is_active = $7, notes = $8 WHERE id = $9 RETURNING *`, [user_id || null, company_id || null, company_name || null, max_devices, grace_period_days || 7, expires_at || null, is_active, notes || null, id]);
     res.json({ success: true, license: result.rows[0] });
   } catch (err) {
-    console.error('Update license error:', err);
     res.status(500).json({ error: 'Failed to update license' });
   }
 });
@@ -403,7 +447,6 @@ app.delete('/api/admin/licenses/:id', authenticateToken, async (req, res) => {
     await pool.query('DELETE FROM licenses WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
-    console.error('Delete license error:', err);
     res.status(500).json({ error: 'Failed to delete license' });
   }
 });
@@ -414,7 +457,6 @@ app.get('/api/admin/licenses/:id/devices', authenticateToken, async (req, res) =
     const result = await pool.query('SELECT * FROM license_devices WHERE license_id = $1 ORDER BY activated_at DESC', [req.params.id]);
     res.json({ devices: result.rows });
   } catch (err) {
-    console.error('Error fetching devices:', err);
     res.status(500).json({ error: 'Failed to fetch devices' });
   }
 });
@@ -425,7 +467,6 @@ app.delete('/api/admin/licenses/:licenseId/devices/:deviceId', authenticateToken
     await pool.query('DELETE FROM license_devices WHERE license_id = $1 AND id = $2', [req.params.licenseId, req.params.deviceId]);
     res.json({ success: true });
   } catch (err) {
-    console.error('Remove device error:', err);
     res.status(500).json({ error: 'Failed to remove device' });
   }
 });
@@ -449,7 +490,6 @@ app.post('/api/licenses/activate', async (req, res) => {
     const deviceResult = await pool.query(`INSERT INTO license_devices (license_id, device_id, device_name, device_model) VALUES ($1, $2, $3, $4) RETURNING *`, [license.id, device_id, device_name || 'Unknown', device_model || 'Unknown']);
     res.json({ success: true, message: 'Device activated successfully', license: {license_key: license.license_key, company_name: license.company_name, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: deviceResult.rows[0]});
   } catch (err) {
-    console.error('License activation error:', err);
     res.status(500).json({ error: 'Activation failed' });
   }
 });
@@ -467,7 +507,6 @@ app.post('/api/licenses/verify', async (req, res) => {
     await pool.query('UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1', [license.device_record_id]);
     res.json({ valid: true, verified_at: new Date().toISOString(), license: {company_name: license.company_name, expires_at: license.expires_at, max_devices: license.max_devices, grace_period_days: license.grace_period_days, last_verified: new Date().toISOString()}});
   } catch (err) {
-    console.error('License verification error:', err);
     res.status(500).json({ valid: false, error: 'Verification failed', should_retry: true });
   }
 });
@@ -478,7 +517,6 @@ app.get('/api/licenses/info/:licenseKey', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'License not found' });
     res.json({ license: result.rows[0] });
   } catch (err) {
-    console.error('Error fetching license info:', err);
     res.status(500).json({ error: 'Failed to fetch license info' });
   }
 });
@@ -492,13 +530,13 @@ app.post('/api/licenses/deactivate', async (req, res) => {
     await pool.query('DELETE FROM license_devices WHERE license_id = $1 AND device_id = $2', [licenseResult.rows[0].id, device_id]);
     res.json({ success: true, message: 'Device deactivated' });
   } catch (err) {
-    console.error('Deactivation error:', err);
     res.status(500).json({ error: 'Deactivation failed' });
   }
 });
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🏢 Companies Support: ENABLED`);
   console.log(`📧 Email Support: ENABLED`);
   console.log(`📱 Grace Period Support: ENABLED`);
   await initDatabase();

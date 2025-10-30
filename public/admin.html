@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+a<!DOCTYPE html>
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
@@ -10,14 +10,14 @@
         .login-container { max-width: 400px; margin: 100px auto; background: white; border-radius: 15px; padding: 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
         .login-container h1 { color: #333; margin-bottom: 10px; text-align: center; }
         .login-container p { color: #666; text-align: center; margin-bottom: 30px; }
-        .main-app { display: none; max-width: 1400px; margin: 0 auto; }
+        .main-app { display: none; max-width: 1600px; margin: 0 auto; }
         .header { background: white; border-radius: 15px; padding: 20px 30px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
         .header h1 { color: #333; }
         .user-info { display: flex; align-items: center; gap: 15px; }
         .user-badge { background: #667eea; color: white; padding: 8px 15px; border-radius: 20px; font-size: 14px; }
         .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; }
         .logout-btn:hover { background: #c82333; }
-        .tabs { background: white; border-radius: 15px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; gap: 10px; }
+        .tabs { background: white; border-radius: 15px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; }
         .tab-btn { background: none; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; color: #666; transition: all 0.3s; }
         .tab-btn:hover { background: #f0f0f0; }
         .tab-btn.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
@@ -34,6 +34,7 @@
         .btn-small { padding: 6px 12px; font-size: 13px; }
         .btn-secondary { background: #6c757d; }
         .btn-danger { background: #dc3545; }
+        .btn-success { background: #28a745; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #f8f9fa; font-weight: 600; color: #333; }
@@ -44,7 +45,7 @@
         .badge-active { background: #28a745; color: white; }
         .badge-inactive { background: #dc3545; color: white; }
         .badge-expired { background: #ffc107; color: #333; }
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow-y: auto; }
         .modal-content { background: white; margin: 50px auto; padding: 30px; border-radius: 15px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-header h2 { color: #333; }
@@ -65,6 +66,11 @@
         .device-info { flex: 1; }
         .device-name { font-weight: 600; color: #333; }
         .device-meta { font-size: 12px; color: #666; margin-top: 4px; }
+        .company-card { background: #f8f9ff; padding: 20px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #667eea; }
+        .company-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .company-name { font-size: 20px; font-weight: bold; color: #333; }
+        .company-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 14px; color: #666; }
+        .info-label { font-weight: 600; color: #333; }
     </style>
 </head>
 <body>
@@ -85,8 +91,10 @@
 
     <div class="main-app" id="mainApp">
         <div class="header">
-            <h1>🌲 Admin Panel</h1>
-            <p style="color: #666; font-size: 14px;">Gestionare useri și permisiuni</p>
+            <div>
+                <h1>🌲 Admin Panel</h1>
+                <p style="color: #666; font-size: 14px;">Gestionare completă sistem</p>
+            </div>
             <div class="user-info">
                 <span class="user-badge">👤 <span id="currentUser">Administrator</span></span>
                 <button class="logout-btn" onclick="logout()">Logout</button>
@@ -95,12 +103,17 @@
 
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('companies')">🏢 Companii</button>
             <button class="tab-btn" onclick="switchTab('users')">👥 Useri</button>
             <button class="tab-btn" onclick="switchTab('licenses')">🔐 Licențe</button>
         </div>
 
         <div class="container active" id="dashboardTab">
             <div class="stats">
+                <div class="stat-card">
+                    <h3 id="totalCompanies">-</h3>
+                    <p>Companii</p>
+                </div>
                 <div class="stat-card">
                     <h3 id="totalUsers">-</h3>
                     <p>Total Useri</p>
@@ -110,16 +123,35 @@
                     <p>Useri Activi</p>
                 </div>
                 <div class="stat-card">
-                    <h3 id="totalCategories">-</h3>
-                    <p>Categorii</p>
-                </div>
-                <div class="stat-card">
                     <h3 id="totalLicenses">-</h3>
                     <p>Licențe Active</p>
                 </div>
             </div>
             <h2 style="margin-bottom: 20px;">Bine ai venit în Admin Panel!</h2>
-            <p>Folosește tab-urile de sus pentru a gestiona userii și licențele aplicațiilor mobile.</p>
+            <p>Folosește tab-urile de sus pentru a gestiona companiile, userii și licențele.</p>
+        </div>
+
+        <div class="container" id="companiesTab">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>🏢 Companii</h2>
+                <button class="btn" onclick="openCreateCompanyModal()">➕ Creare Companie Nouă</button>
+            </div>
+            <div class="message" id="companiesMessage"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nume Companie</th>
+                        <th>CUI</th>
+                        <th>Email</th>
+                        <th>Telefon</th>
+                        <th>Useri</th>
+                        <th>Licențe</th>
+                        <th>Status</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody id="companiesTableBody"></tbody>
+            </table>
         </div>
 
         <div class="container" id="usersTab">
@@ -134,10 +166,9 @@
                         <th>Username</th>
                         <th>Nume Complet</th>
                         <th>Email</th>
+                        <th>Companie</th>
                         <th>Rol</th>
                         <th>Status</th>
-                        <th>Categorii</th>
-                        <th>Data Creare</th>
                         <th>Acțiuni</th>
                     </tr>
                 </thead>
@@ -157,7 +188,6 @@
                         <th>License Key</th>
                         <th>Companie</th>
                         <th>User</th>
-                        <th>Email</th>
                         <th>Devices</th>
                         <th>Status</th>
                         <th>Expirare</th>
@@ -169,6 +199,51 @@
         </div>
     </div>
 
+    <div id="companyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="companyModalTitle">Creare Companie Nouă</h2>
+                <span class="close" onclick="closeCompanyModal()">&times;</span>
+            </div>
+            <form id="companyForm">
+                <input type="hidden" id="companyId">
+                <label>Nume Companie *</label>
+                <input type="text" id="companyName" required placeholder="Ex: Forestier SRL">
+                
+                <label>CUI</label>
+                <input type="text" id="companyCui" placeholder="Ex: RO12345678">
+                
+                <label>Adresă</label>
+                <textarea id="companyAddress" placeholder="Adresa completă"></textarea>
+                
+                <label>Telefon</label>
+                <input type="text" id="companyPhone" placeholder="Ex: 0740123456">
+                
+                <label>Email</label>
+                <input type="email" id="companyEmail" placeholder="office@companie.ro">
+                
+                <label>
+                    <input type="checkbox" id="companyActive" checked> Companie Activă
+                </label>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn">Salvează</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeCompanyModal()">Anulează</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="companyDetailsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Detalii Companie</h2>
+                <span class="close" onclick="closeCompanyDetailsModal()">&times;</span>
+            </div>
+            <div id="companyDetailsContent"></div>
+        </div>
+    </div>
+
     <div id="userModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -177,7 +252,7 @@
             </div>
             <form id="userForm">
                 <input type="hidden" id="userId">
-                <label>Username</label>
+                <label>Username *</label>
                 <input type="text" id="username" required>
                 
                 <label>Nume Complet</label>
@@ -186,7 +261,12 @@
                 <label>Email</label>
                 <input type="email" id="email" placeholder="exemplu@domeniu.ro">
                 
-                <label>Parolă (opțional - lasă gol pentru a păstra parola)</label>
+                <label>Companie</label>
+                <select id="userCompanyId">
+                    <option value="">Nicio companie</option>
+                </select>
+                
+                <label>Parolă (opțional la editare)</label>
                 <div class="password-toggle">
                     <input type="password" id="password">
                     <button type="button" onclick="togglePassword('password', this)">👁️</button>
@@ -229,7 +309,12 @@
                 </div>
                 
                 <label>Companie</label>
-                <input type="text" id="companyName" placeholder="Ex: Forestier SRL">
+                <select id="licenseCompanyId">
+                    <option value="">Nicio companie</option>
+                </select>
+                
+                <label>Nume Companie (text liber - opțional)</label>
+                <input type="text" id="licenseCompanyName" placeholder="Ex: Forestier SRL">
                 
                 <label>User Alocat (opțional)</label>
                 <select id="licenseUserId">
@@ -271,12 +356,14 @@
     </div>
 
     <script>
-        let token = null;
+let token = null;
         let allUsers = [];
         let allLicenses = [];
+        let allCompanies = [];
         let allCategories = [];
         let editingUserId = null;
         let editingLicenseId = null;
+        let editingCompanyId = null;
         let currentLicenseForDevices = null;
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -300,6 +387,7 @@
                     document.getElementById('currentUser').textContent = data.user.full_name || data.user.username;
                     
                     loadDashboard();
+                    loadCompanies();
                     loadUsers();
                     loadLicenses();
                 } else if (response.ok && data.user.role !== 'admin') {
@@ -337,6 +425,13 @@
             setTimeout(() => msg.classList.remove('show'), 5000);
         }
 
+        function showCompaniesMessage(text, type) {
+            const msg = document.getElementById('companiesMessage');
+            msg.textContent = text;
+            msg.className = `message ${type} show`;
+            setTimeout(() => msg.classList.remove('show'), 5000);
+        }
+
         function showUsersMessage(text, type) {
             const msg = document.getElementById('usersMessage');
             msg.textContent = text;
@@ -358,36 +453,252 @@
             event.target.classList.add('active');
             document.getElementById(tabName + 'Tab').classList.add('active');
 
+            if (tabName === 'companies') loadCompanies();
             if (tabName === 'users') loadUsers();
             if (tabName === 'licenses') loadLicenses();
         }
 
         async function loadDashboard() {
             try {
-                const [usersRes, licensesRes] = await Promise.all([
+                const [companiesRes, usersRes, licensesRes] = await Promise.all([
+                    fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/admin/licenses', { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
 
+                const companiesData = await companiesRes.json();
                 const usersData = await usersRes.json();
                 const licensesData = await licensesRes.json();
 
+                document.getElementById('totalCompanies').textContent = companiesData.companies.filter(c => c.is_active).length;
                 document.getElementById('totalUsers').textContent = usersData.total;
                 document.getElementById('activeUsers').textContent = usersData.users.filter(u => u.is_active).length;
-                
-                const categories = new Set();
-                usersData.users.forEach(user => {
-                    if (user.categories) {
-                        user.categories.forEach(cat => {
-                            if (cat && cat.category) categories.add(cat.category);
-                        });
-                    }
-                });
-                document.getElementById('totalCategories').textContent = categories.size;
                 document.getElementById('totalLicenses').textContent = licensesData.licenses.filter(l => l.is_active).length;
             } catch (err) {
                 console.error('Error loading dashboard:', err);
             }
+        }
+
+        async function loadCompanies() {
+            try {
+                const response = await fetch('/api/admin/companies', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+                allCompanies = data.companies;
+
+                const tbody = document.getElementById('companiesTableBody');
+                tbody.innerHTML = allCompanies.map(company => `
+                    <tr>
+                        <td><strong>${company.name}</strong></td>
+                        <td>${company.cui || '-'}</td>
+                        <td>${company.email || '-'}</td>
+                        <td>${company.phone || '-'}</td>
+                        <td>
+                            <span style="cursor: pointer; color: #667eea;" onclick="viewCompanyUsers(${company.id})">
+                                ${company.user_count} 👥
+                            </span>
+                        </td>
+                        <td>
+                            <span style="cursor: pointer; color: #667eea;" onclick="viewCompanyLicenses(${company.id})">
+                                ${company.license_count} 🔐
+                            </span>
+                        </td>
+                        <td><span class="badge badge-${company.is_active ? 'active' : 'inactive'}">${company.is_active ? 'Activă' : 'Inactivă'}</span></td>
+                        <td>
+                            <button class="btn btn-small" onclick="editCompany(${company.id})">✏️ Edit</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteCompany(${company.id}, '${company.name.replace(/'/g, "\\'")}')">🗑️</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                loadDashboard();
+            } catch (err) {
+                showCompaniesMessage('Eroare la încărcarea companiilor', 'error');
+            }
+        }
+
+        function openCreateCompanyModal() {
+            editingCompanyId = null;
+            document.getElementById('companyModalTitle').textContent = 'Creare Companie Nouă';
+            document.getElementById('companyForm').reset();
+            document.getElementById('companyId').value = '';
+            document.getElementById('companyActive').checked = true;
+            document.getElementById('companyModal').style.display = 'block';
+        }
+
+        function editCompany(companyId) {
+            editingCompanyId = companyId;
+            const company = allCompanies.find(c => c.id === companyId);
+            
+            document.getElementById('companyModalTitle').textContent = 'Editare Companie';
+            document.getElementById('companyId').value = company.id;
+            document.getElementById('companyName').value = company.name;
+            document.getElementById('companyCui').value = company.cui || '';
+            document.getElementById('companyAddress').value = company.address || '';
+            document.getElementById('companyPhone').value = company.phone || '';
+            document.getElementById('companyEmail').value = company.email || '';
+            document.getElementById('companyActive').checked = company.is_active;
+            
+            document.getElementById('companyModal').style.display = 'block';
+        }
+
+        function closeCompanyModal() {
+            document.getElementById('companyModal').style.display = 'none';
+            document.getElementById('companyForm').reset();
+            editingCompanyId = null;
+        }
+
+        document.getElementById('companyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const companyId = document.getElementById('companyId').value;
+            const name = document.getElementById('companyName').value;
+            const cui = document.getElementById('companyCui').value;
+            const address = document.getElementById('companyAddress').value;
+            const phone = document.getElementById('companyPhone').value;
+            const email = document.getElementById('companyEmail').value;
+            const isActive = document.getElementById('companyActive').checked;
+
+            const companyData = { name, cui, address, phone, email, is_active: isActive };
+
+            try {
+                const url = companyId ? `/api/admin/companies/${companyId}` : '/api/admin/companies';
+                const method = companyId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(companyData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showCompaniesMessage(companyId ? 'Companie actualizată!' : 'Companie creată!', 'success');
+                    closeCompanyModal();
+                    loadCompanies();
+                } else {
+                    showCompaniesMessage(data.error || 'Eroare la salvare', 'error');
+                }
+            } catch (err) {
+                showCompaniesMessage('Eroare de conexiune', 'error');
+            }
+        });
+
+        async function deleteCompany(companyId, companyName) {
+            if (!confirm(`Sigur vrei să ștergi compania "${companyName}"? Userii și licențele vor rămâne dar vor fi disociate.`)) return;
+
+            try {
+                const response = await fetch(`/api/admin/companies/${companyId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    showCompaniesMessage('Companie ștearsă!', 'success');
+                    loadCompanies();
+                } else {
+                    showCompaniesMessage('Eroare la ștergere', 'error');
+                }
+            } catch (err) {
+                showCompaniesMessage('Eroare de conexiune', 'error');
+            }
+        }
+
+        async function viewCompanyUsers(companyId) {
+            try {
+                const response = await fetch(`/api/admin/companies/${companyId}/users`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                const company = allCompanies.find(c => c.id === companyId);
+                
+                const content = document.getElementById('companyDetailsContent');
+                content.innerHTML = `
+                    <h3 style="margin-bottom: 20px;">👥 Useri - ${company.name}</h3>
+                    ${data.users.length === 0 ? '<p style="text-align: center; color: #999;">Niciun user asociat.</p>' : `
+                        <table style="margin-top: 0;">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Nume</th>
+                                    <th>Email</th>
+                                    <th>Rol</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.users.map(user => `
+                                    <tr>
+                                        <td>${user.username}</td>
+                                        <td>${user.full_name || '-'}</td>
+                                        <td>${user.email || '-'}</td>
+                                        <td><span class="badge badge-${user.role}">${user.role.toUpperCase()}</span></td>
+                                        <td><span class="badge badge-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Activ' : 'Inactiv'}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `}
+                `;
+                document.getElementById('companyDetailsModal').style.display = 'block';
+            } catch (err) {
+                alert('Eroare la încărcarea userilor');
+            }
+        }
+
+        async function viewCompanyLicenses(companyId) {
+            try {
+                const response = await fetch(`/api/admin/companies/${companyId}/licenses`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                const company = allCompanies.find(c => c.id === companyId);
+                
+                const content = document.getElementById('companyDetailsContent');
+                content.innerHTML = `
+                    <h3 style="margin-bottom: 20px;">🔐 Licențe - ${company.name}</h3>
+                    ${data.licenses.length === 0 ? '<p style="text-align: center; color: #999;">Nicio licență asociată.</p>' : `
+                        <table style="margin-top: 0;">
+                            <thead>
+                                <tr>
+                                    <th>License Key</th>
+                                    <th>Devices</th>
+                                    <th>Status</th>
+                                    <th>Expirare</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.licenses.map(license => {
+                                    const isExpired = license.expires_at && new Date(license.expires_at) < new Date();
+                                    const statusBadge = !license.is_active ? 'inactive' : (isExpired ? 'expired' : 'active');
+                                    const statusText = !license.is_active ? 'Inactivă' : (isExpired ? 'Expirată' : 'Activă');
+                                    return `
+                                        <tr>
+                                            <td><code style="font-size: 12px;">${license.license_key}</code></td>
+                                            <td>${license.active_devices}/${license.max_devices}</td>
+                                            <td><span class="badge badge-${statusBadge}">${statusText}</span></td>
+                                            <td>${license.expires_at ? new Date(license.expires_at).toLocaleDateString('ro-RO') : 'Nelimitat'}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    `}
+                `;
+                document.getElementById('companyDetailsModal').style.display = 'block';
+            } catch (err) {
+                alert('Eroare la încărcarea licențelor');
+            }
+        }
+
+        function closeCompanyDetailsModal() {
+            document.getElementById('companyDetailsModal').style.display = 'none';
         }
 
         async function loadUsers() {
@@ -405,10 +716,9 @@
                         <td><strong>${user.username}</strong></td>
                         <td>${user.full_name || '-'}</td>
                         <td>${user.email || '-'}</td>
+                        <td>${user.company_name || '-'}</td>
                         <td><span class="badge badge-${user.role}">${user.role.toUpperCase()}</span></td>
                         <td><span class="badge badge-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Activ' : 'Inactiv'}</span></td>
-                        <td>${user.categories && user.categories.length > 0 ? user.categories.map(c => c.category).filter(Boolean).join(', ') : '-'}</td>
-                        <td>${new Date(user.created_at).toLocaleDateString('ro-RO')}</td>
                         <td>
                             <button class="btn btn-small" onclick="editUser(${user.id})">✏️ Edit</button>
                             ${user.username !== 'admin' ? `<button class="btn btn-small btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">🗑️</button>` : ''}
@@ -422,54 +732,16 @@
             }
         }
 
-        async function loadLicenses() {
-            try {
-                const response = await fetch('/api/admin/licenses', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                const data = await response.json();
-                allLicenses = data.licenses;
-
-                const tbody = document.getElementById('licensesTableBody');
-                tbody.innerHTML = allLicenses.map(license => {
-                    const isExpired = license.expires_at && new Date(license.expires_at) < new Date();
-                    const statusBadge = !license.is_active ? 'inactive' : (isExpired ? 'expired' : 'active');
-                    const statusText = !license.is_active ? 'Inactivă' : (isExpired ? 'Expirată' : 'Activă');
-                    
-                    return `
-                        <tr>
-                            <td><code style="background: #f8f9ff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${license.license_key}</code></td>
-                            <td>${license.company_name || '-'}</td>
-                            <td>${license.full_name || license.username || '-'}</td>
-                            <td>${license.email || '-'}</td>
-                            <td>
-                                <span style="cursor: pointer; color: #667eea; text-decoration: underline;" onclick="viewDevices(${license.id}, '${license.license_key}')">
-                                    ${license.active_devices}/${license.max_devices} 📱
-                                </span>
-                            </td>
-                            <td><span class="badge badge-${statusBadge}">${statusText}</span></td>
-                            <td>${license.expires_at ? new Date(license.expires_at).toLocaleDateString('ro-RO') : 'Nelimitat'}</td>
-                            <td>
-                                <button class="btn btn-small" onclick="editLicense(${license.id})">✏️ Edit</button>
-                                <button class="btn btn-small btn-danger" onclick="deleteLicense(${license.id}, '${license.license_key}')">🗑️</button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-
-                loadDashboard();
-            } catch (err) {
-                showLicensesMessage('Eroare la încărcarea licențelor', 'error');
-            }
-        }
-
         async function openCreateUserModal() {
             editingUserId = null;
             document.getElementById('userModalTitle').textContent = 'Creare User Nou';
             document.getElementById('userForm').reset();
             document.getElementById('userId').value = '';
             document.getElementById('isActive').checked = true;
+            
+            const companySelect = document.getElementById('userCompanyId');
+            companySelect.innerHTML = '<option value="">Nicio companie</option>' + 
+                allCompanies.filter(c => c.is_active).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
             
             await loadCategoriesForUser();
             document.getElementById('categoriesContainer').innerHTML = '';
@@ -490,13 +762,17 @@
             document.getElementById('role').value = user.role;
             document.getElementById('isActive').checked = user.is_active;
             
+            const companySelect = document.getElementById('userCompanyId');
+            companySelect.innerHTML = '<option value="">Nicio companie</option>' + 
+                allCompanies.map(c => `<option value="${c.id}" ${c.id === user.company_id ? 'selected' : ''}>${c.name}</option>`).join('');
+            
             await loadCategoriesForUser();
             
             const container = document.getElementById('categoriesContainer');
             container.innerHTML = '';
             
             if (user.categories && user.categories.length > 0) {
-                user.categories.forEach((cat, index) => {
+                user.categories.forEach((cat) => {
                     if (cat && cat.category) {
                         addCategoryPermission(cat.category, cat.can_read, cat.can_write, cat.can_delete);
                     }
@@ -520,14 +796,12 @@
                 const data = await response.json();
                 allCategories = data.categories || [];
             } catch (err) {
-                console.error('Error loading categories:', err);
                 allCategories = [];
             }
         }
 
         function addCategoryPermission(category = '', canRead = true, canWrite = true, canDelete = false) {
             const container = document.getElementById('categoriesContainer');
-            const index = container.children.length;
             
             const categoryItem = document.createElement('div');
             categoryItem.className = 'category-item';
@@ -565,6 +839,7 @@
             const username = document.getElementById('username').value;
             const fullName = document.getElementById('fullName').value;
             const email = document.getElementById('email').value;
+            const companyId = document.getElementById('userCompanyId').value;
             const password = document.getElementById('password').value;
             const role = document.getElementById('role').value;
             const isActive = document.getElementById('isActive').checked;
@@ -586,6 +861,7 @@
                 username,
                 full_name: fullName,
                 email: email,
+                company_id: companyId || null,
                 role,
                 is_active: isActive,
                 categories
@@ -611,7 +887,7 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showUsersMessage(userId ? 'User actualizat cu succes!' : 'User creat cu succes!', 'success');
+                    showUsersMessage(userId ? 'User actualizat!' : 'User creat!', 'success');
                     closeUserModal();
                     loadUsers();
                 } else {
@@ -632,14 +908,54 @@
                 });
 
                 if (response.ok) {
-                    showUsersMessage('User șters cu succes!', 'success');
+                    showUsersMessage('User șters!', 'success');
                     loadUsers();
                 } else {
-                    const data = await response.json();
-                    showUsersMessage(data.error || 'Eroare la ștergere', 'error');
+                    showUsersMessage('Eroare la ștergere', 'error');
                 }
             } catch (err) {
                 showUsersMessage('Eroare de conexiune', 'error');
+            }
+        }
+
+        async function loadLicenses() {
+            try {
+                const response = await fetch('/api/admin/licenses', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+                allLicenses = data.licenses;
+
+                const tbody = document.getElementById('licensesTableBody');
+                tbody.innerHTML = allLicenses.map(license => {
+                    const isExpired = license.expires_at && new Date(license.expires_at) < new Date();
+                    const statusBadge = !license.is_active ? 'inactive' : (isExpired ? 'expired' : 'active');
+                    const statusText = !license.is_active ? 'Inactivă' : (isExpired ? 'Expirată' : 'Activă');
+                    
+                    return `
+                        <tr>
+                            <td><code style="background: #f8f9ff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${license.license_key}</code></td>
+                            <td>${license.company_name || '-'}</td>
+                            <td>${license.full_name || license.username || '-'}</td>
+                            <td>
+                                <span style="cursor: pointer; color: #667eea; text-decoration: underline;" onclick="viewDevices(${license.id}, '${license.license_key}')">
+                                    ${license.active_devices}/${license.max_devices} 📱
+                                </span>
+                            </td>
+                            <td><span class="badge badge-${statusBadge}">${statusText}</span></td>
+                            <td>${license.expires_at ? new Date(license.expires_at).toLocaleDateString('ro-RO') : 'Nelimitat'}</td>
+                            <td>
+                                <button class="btn btn-small" onclick="editLicense(${license.id})">✏️ Edit</button>
+                                <button class="btn btn-small btn-danger" onclick="deleteLicense(${license.id}, '${license.license_key}')">🗑️</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                loadDashboard();
+            } catch (err) {
+                showLicensesMessage('Eroare la încărcarea licențelor', 'error');
             }
         }
 
@@ -653,8 +969,12 @@
             document.getElementById('gracePeriodDays').value = 7;
             document.getElementById('licenseKeyDisplay').style.display = 'none';
             
-            const select = document.getElementById('licenseUserId');
-            select.innerHTML = '<option value="">Niciun user</option>' + 
+            const companySelect = document.getElementById('licenseCompanyId');
+            companySelect.innerHTML = '<option value="">Nicio companie</option>' + 
+                allCompanies.filter(c => c.is_active).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            
+            const userSelect = document.getElementById('licenseUserId');
+            userSelect.innerHTML = '<option value="">Niciun user</option>' + 
                 allUsers.map(u => `<option value="${u.id}">${u.full_name || u.username} ${u.email ? '(' + u.email + ')' : ''}</option>`).join('');
             
             document.getElementById('licenseModal').style.display = 'block';
@@ -666,7 +986,7 @@
             
             document.getElementById('licenseModalTitle').textContent = 'Editare Licență';
             document.getElementById('licenseId').value = license.id;
-            document.getElementById('companyName').value = license.company_name || '';
+            document.getElementById('licenseCompanyName').value = license.company_name || '';
             document.getElementById('maxDevices').value = license.max_devices;
             document.getElementById('gracePeriodDays').value = license.grace_period_days || 7;
             document.getElementById('expiresAt').value = license.expires_at ? license.expires_at.split('T')[0] : '';
@@ -676,8 +996,12 @@
             document.getElementById('licenseKeyDisplay').style.display = 'block';
             document.getElementById('generatedLicenseKey').textContent = license.license_key;
             
-            const select = document.getElementById('licenseUserId');
-            select.innerHTML = '<option value="">Niciun user</option>' + 
+            const companySelect = document.getElementById('licenseCompanyId');
+            companySelect.innerHTML = '<option value="">Nicio companie</option>' + 
+                allCompanies.map(c => `<option value="${c.id}" ${c.id === license.company_id ? 'selected' : ''}>${c.name}</option>`).join('');
+            
+            const userSelect = document.getElementById('licenseUserId');
+            userSelect.innerHTML = '<option value="">Niciun user</option>' + 
                 allUsers.map(u => `<option value="${u.id}" ${u.id === license.user_id ? 'selected' : ''}>${u.full_name || u.username} ${u.email ? '(' + u.email + ')' : ''}</option>`).join('');
             
             document.getElementById('licenseModal').style.display = 'block';
@@ -693,7 +1017,8 @@
             e.preventDefault();
             
             const licenseId = document.getElementById('licenseId').value;
-            const companyName = document.getElementById('companyName').value;
+            const companyId = document.getElementById('licenseCompanyId').value;
+            const companyName = document.getElementById('licenseCompanyName').value;
             const userId = document.getElementById('licenseUserId').value;
             const maxDevices = parseInt(document.getElementById('maxDevices').value);
             const gracePeriodDays = parseInt(document.getElementById('gracePeriodDays').value);
@@ -702,6 +1027,7 @@
             const notes = document.getElementById('licenseNotes').value;
 
             const licenseData = {
+                company_id: companyId || null,
                 company_name: companyName,
                 user_id: userId || null,
                 max_devices: maxDevices,
@@ -730,9 +1056,9 @@
                     if (!licenseId) {
                         document.getElementById('licenseKeyDisplay').style.display = 'block';
                         document.getElementById('generatedLicenseKey').textContent = data.license.license_key;
-                        showLicensesMessage('Licență creată cu succes! Copiază License Key-ul!', 'success');
+                        showLicensesMessage('Licență creată! Copiază License Key-ul!', 'success');
                     } else {
-                        showLicensesMessage('Licență actualizată cu succes!', 'success');
+                        showLicensesMessage('Licență actualizată!', 'success');
                         closeLicenseModal();
                     }
                     loadLicenses();
@@ -745,7 +1071,7 @@
         });
 
         async function deleteLicense(licenseId, licenseKey) {
-            if (!confirm(`Sigur vrei să ștergi licența "${licenseKey}"? Toate dispozitivele asociate vor fi deconectate!`)) return;
+            if (!confirm(`Sigur vrei să ștergi licența "${licenseKey}"?`)) return;
 
             try {
                 const response = await fetch(`/api/admin/licenses/${licenseId}`, {
@@ -754,7 +1080,7 @@
                 });
 
                 if (response.ok) {
-                    showLicensesMessage('Licență ștearsă cu succes!', 'success');
+                    showLicensesMessage('Licență ștearsă!', 'success');
                     loadLicenses();
                 } else {
                     showLicensesMessage('Eroare la ștergere', 'error');
@@ -765,8 +1091,6 @@
         }
 
         async function viewDevices(licenseId, licenseKey) {
-            currentLicenseForDevices = licenseId;
-            
             try {
                 const response = await fetch(`/api/admin/licenses/${licenseId}/devices`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -778,7 +1102,7 @@
                 const container = document.getElementById('devicesContainer');
                 
                 if (devices.length === 0) {
-                    container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Niciun dispozitiv activat pe această licență.</p>';
+                    container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Niciun dispozitiv activat.</p>';
                 } else {
                     container.innerHTML = `
                         <p style="margin-bottom: 15px;"><strong>License Key:</strong> <code>${licenseKey}</code></p>
@@ -809,7 +1133,6 @@
 
         function closeDevicesModal() {
             document.getElementById('devicesModal').style.display = 'none';
-            currentLicenseForDevices = null;
         }
 
         async function removeDevice(licenseId, deviceId, deviceName) {
