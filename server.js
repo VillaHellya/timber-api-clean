@@ -82,21 +82,27 @@ async function initDatabase() {
       )
     `);
 
-// Create default admin if not exists
-try {
-  const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
-  if (adminCheck.rows.length === 0) {
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    await pool.query(
-      'INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4)',
-      ['admin', hashedPassword, 'Administrator', 'admin']
-    );
-    console.log('✅ Default admin created (username: admin, password: admin123)');
-  } else {
-    console.log('✅ Default admin already exists');
+    // Create default admin if not exists
+    try {
+      const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
+      if (adminCheck.rows.length === 0) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await pool.query(
+          'INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4)',
+          ['admin', hashedPassword, 'Administrator', 'admin']
+        );
+        console.log('✅ Default admin created (username: admin, password: admin123)');
+      } else {
+        console.log('✅ Default admin already exists');
+      }
+    } catch (adminErr) {
+      console.error('⚠️ Admin creation error (non-fatal):', adminErr.message);
+    }
+
+    console.log('✅ Database tables initialized');
+  } catch (err) {
+    console.error('❌ Database initialization error:', err);
   }
-} catch (adminErr) {
-  console.error('⚠️ Admin creation error (non-fatal):', adminErr.message);
 }
 
 // Auth middleware
@@ -131,7 +137,6 @@ const checkCategoryAccess = (permission) => {
   return async (req, res, next) => {
     const category = req.body.category || req.query.category || req.params.category;
     
-    // Admin has all permissions
     if (req.user.role === 'admin') {
       return next();
     }
@@ -185,8 +190,6 @@ app.get('/', (req, res) => {
     }
   });
 });
-
-// ============ AUTH ENDPOINTS ============
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
@@ -253,8 +256,6 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
-// ============ ADMIN ENDPOINTS ============
-
 // Get all users (admin only)
 app.get('/api/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
@@ -311,7 +312,6 @@ app.post('/api/admin/users', authenticateToken, async (req, res) => {
 
     const userId = userResult.rows[0].id;
 
-    // Add category permissions
     if (categories && categories.length > 0) {
       for (const cat of categories) {
         await client.query(
@@ -351,7 +351,6 @@ app.put('/api/admin/users/:id', authenticateToken, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Update user info
     let updateQuery = 'UPDATE users SET ';
     const updateParams = [];
     let paramCount = 1;
@@ -381,13 +380,12 @@ app.put('/api/admin/users/:id', authenticateToken, async (req, res) => {
       paramCount++;
     }
 
-    updateQuery = updateQuery.slice(0, -2); // Remove last comma
+    updateQuery = updateQuery.slice(0, -2);
     updateQuery += ` WHERE id = $${paramCount}`;
     updateParams.push(userId);
 
     await client.query(updateQuery, updateParams);
 
-    // Update categories if provided
     if (categories !== undefined) {
       await client.query('DELETE FROM user_categories WHERE user_id = $1', [userId]);
       
@@ -432,9 +430,7 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// ============ DATA ENDPOINTS (Protected) ============
-
-// Get categories (user sees only their categories)
+// Get categories
 app.get('/api/categories', authenticateToken, async (req, res) => {
   try {
     let query;
@@ -457,7 +453,7 @@ app.get('/api/categories', authenticateToken, async (req, res) => {
   }
 });
 
-// Upload CSV (requires write permission)
+// Upload CSV
 app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -469,7 +465,6 @@ app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upl
     const category = req.body.category || 'general';
     const filename = req.file.originalname;
 
-    // Check for duplicate
     const duplicateCheck = await client.query(
       'SELECT id FROM csv_files WHERE filename = $1 AND category = $2',
       [filename, category]
@@ -491,7 +486,6 @@ app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upl
     );
     const fileId = fileResult.rows[0].id;
 
-    // Parse CSV
     const rows = [];
     const stream = Readable.from(req.file.buffer.toString());
     
@@ -503,7 +497,6 @@ app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upl
         .on('error', reject);
     });
 
-    // Insert data
     for (const row of rows) {
       await client.query(
         'INSERT INTO csv_data (file_id, row_data) VALUES ($1, $2)',
@@ -531,7 +524,7 @@ app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upl
   }
 });
 
-// Get datasets (filtered by user permissions)
+// Get datasets
 app.get('/api/datasets', authenticateToken, async (req, res) => {
   try {
     const category = req.query.category;
@@ -627,7 +620,6 @@ app.get('/api/data/:filename', authenticateToken, async (req, res) => {
 
     const category = result.rows[0].category;
 
-    // Check read permission
     if (req.user.role !== 'admin') {
       const permCheck = await pool.query(
         'SELECT can_read FROM user_categories WHERE user_id = $1 AND category = $2',
@@ -647,10 +639,9 @@ app.get('/api/data/:filename', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete dataset (requires delete permission)
+// Delete dataset
 app.delete('/api/data/:id', authenticateToken, async (req, res) => {
   try {
-    // Get file category first
     const fileResult = await pool.query('SELECT category FROM csv_files WHERE id = $1', [req.params.id]);
     
     if (fileResult.rows.length === 0) {
@@ -659,7 +650,6 @@ app.delete('/api/data/:id', authenticateToken, async (req, res) => {
 
     const category = fileResult.rows[0].category;
 
-    // Check delete permission
     if (req.user.role !== 'admin') {
       const permCheck = await pool.query(
         'SELECT can_delete FROM user_categories WHERE user_id = $1 AND category = $2',
