@@ -575,21 +575,14 @@ app.get('/api/sync', authenticateToken, async (req, res) => {
 
     // Get datasets disponibile pentru user
     let datasetsQuery = `
-      SELECT 
-        f.id, 
-        f.filename, 
-        f.category, 
-        f.app_id, 
+      SELECT
+        f.id,
+        f.filename,
+        f.category,
         f.uploaded_at,
-        f.user_id,
-        f.company_id,
-        COUNT(d.id) as record_count,
-        u.username as uploaded_by,
-        c.name as company_name
-      FROM csv_files f 
+        COUNT(d.id) as record_count
+      FROM csv_files f
       LEFT JOIN csv_data d ON f.id = d.file_id
-      LEFT JOIN users u ON f.user_id = u.id
-      LEFT JOIN companies c ON f.company_id = c.id
     `;
     
     const datasetsParams = [];
@@ -604,8 +597,8 @@ app.get('/api/sync', authenticateToken, async (req, res) => {
     if (whereClauses.length > 0) {
       datasetsQuery += ' WHERE ' + whereClauses.join(' AND ');
     }
-    
-    datasetsQuery += ' GROUP BY f.id, u.username, c.name ORDER BY f.uploaded_at DESC';
+
+    datasetsQuery += ' GROUP BY f.id ORDER BY f.uploaded_at DESC';
     
     const datasetsResult = await pool.query(datasetsQuery, datasetsParams);
 
