@@ -1,127 +1,4 @@
-const express = require('express');
-const multer = require('multer');
-const { Pool } = require('pg');
-const csv = require('csv-parser');
-const { Readable } = require('stream');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
-
-// PostgreSQL connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
-
-// Configure multer
-const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage: storage,
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only CSV files are allowed!'), false);
-    }
-  }
-});
-
-// Initialize database
-async function initDatabase() {
-  try {
-    // CSV tables
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS csv_files (
-        id SERIAL PRIMARY KEY,
-        filename VARCHAR(255) NOT NULL,
-        category VARCHAR(50) DEFAULT 'general',
-        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS csv_data (
-        id SERIAL PRIMARY KEY,
-        file_id INTEGER REFERENCES csv_files(id) ON DELETE CASCADE,
-        row_data JSONB NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Auth tables
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        full_name VARCHAR(100),
-        role VARCHAR(20) DEFAULT 'user',
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS user_categories (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        category VARCHAR(50) NOT NULL,
-        can_read BOOLEAN DEFAULT true,
-        can_write BOOLEAN DEFAULT false,
-        can_delete BOOLEAN DEFAULT false,
-        UNIQUE(user_id, category)
-      )
-    `);
-
-    // License tables
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS licenses (
-        id SERIAL PRIMARY KEY,
-        license_key VARCHAR(50) UNIQUE NOT NULL,
-        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        company_name VARCHAR(100),
-        max_devices INTEGER DEFAULT 3,
-        expires_at TIMESTAMP,
-        is_active BOOLEAN DEFAULT true,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS license_devices (
-        id SERIAL PRIMARY KEY,
-        license_id INTEGER REFERENCES licenses(id) ON DELETE CASCADE,
-        device_id VARCHAR(255) NOT NULL,
-        device_name VARCHAR(100),
-        device_model VARCHAR(100),
-        activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(license_id, device_id)
-      )
-    `);
-
-    console.log('✅ License tables initialized');
-
-    // Create default admin if not exists
-    try {
-      const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
-      if (adminCheck.rows.length === 0) {
-        const hashedPassword = await bcrypt.hash('admin123', 10);
-        await pool.query(
-          'INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4)',
-          ['admin', hashedPassword, 'Administrator', 'admin']
-        );
-        console.log('✅ Default admin created (username: admin, password: admin123)');
+console.log('✅ Default admin created (username: admin, password: admin123)');
       } else {
         console.log('✅ Default admin already exists');
       }
@@ -195,9 +72,10 @@ const checkCategoryAccess = (permission) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    message: 'Timber Inventory API with Authentication & Licenses',
-    version: '5.0.0',
+    message: 'Timber Inventory API with Authentication & Licenses (Grace Period Support)',
+    version: '5.1.0',
     status: 'running',
+    features: ['offline_mode', 'grace_period', 'license_management'],
     endpoints: {
       auth: {
         login: 'POST /api/auth/login',
@@ -214,7 +92,8 @@ app.get('/', (req, res) => {
       licenses: {
         activate: 'POST /api/licenses/activate',
         verify: 'POST /api/licenses/verify',
-        deactivate: 'POST /api/licenses/deactivate'
+        deactivate: 'POST /api/licenses/deactivate',
+        info: 'GET /api/licenses/info/:licenseKey'
       },
       data: {
         upload: 'POST /api/upload [Auth Required]',
@@ -713,7 +592,7 @@ app.delete('/api/data/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// ============= LICENSE MANAGEMENT =============
+// ============= LICENSE MANAGEMENT WITH GRACE PERIOD =============
 
 // Generate license key
 function generateLicenseKey() {
@@ -764,16 +643,24 @@ app.post('/api/admin/licenses', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const { user_id, company_name, max_devices, expires_at, notes } = req.body;
+  const { user_id, company_name, max_devices, grace_period_days, expires_at, notes } = req.body;
 
   try {
     const licenseKey = generateLicenseKey();
     
     const result = await pool.query(
-      `INSERT INTO licenses (license_key, user_id, company_name, max_devices, expires_at, notes) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
+      `INSERT INTO licenses (license_key, user_id, company_name, max_devices, grace_period_days, expires_at, notes) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING *`,
-      [licenseKey, user_id || null, company_name || null, max_devices || 3, expires_at || null, notes || null]
+      [
+        licenseKey, 
+        user_id || null, 
+        company_name || null, 
+        max_devices || 3, 
+        grace_period_days || 7,
+        expires_at || null, 
+        notes || null
+      ]
     );
 
     res.json({ success: true, license: result.rows[0] });
@@ -790,15 +677,24 @@ app.put('/api/admin/licenses/:id', authenticateToken, async (req, res) => {
   }
 
   const { id } = req.params;
-  const { user_id, company_name, max_devices, expires_at, is_active, notes } = req.body;
+  const { user_id, company_name, max_devices, grace_period_days, expires_at, is_active, notes } = req.body;
 
   try {
     const result = await pool.query(
       `UPDATE licenses 
-       SET user_id = $1, company_name = $2, max_devices = $3, expires_at = $4, is_active = $5, notes = $6
-       WHERE id = $7
+       SET user_id = $1, company_name = $2, max_devices = $3, grace_period_days = $4, expires_at = $5, is_active = $6, notes = $7
+       WHERE id = $8
        RETURNING *`,
-      [user_id || null, company_name || null, max_devices, expires_at || null, is_active, notes || null, id]
+      [
+        user_id || null, 
+        company_name || null, 
+        max_devices, 
+        grace_period_days || 7,
+        expires_at || null, 
+        is_active, 
+        notes || null, 
+        id
+      ]
     );
 
     res.json({ success: true, license: result.rows[0] });
@@ -903,7 +799,13 @@ app.post('/api/licenses/activate', async (req, res) => {
       return res.json({ 
         success: true, 
         message: 'Device already activated',
-        license: license,
+        license: {
+          license_key: license.license_key,
+          company_name: license.company_name,
+          max_devices: license.max_devices,
+          grace_period_days: license.grace_period_days,
+          expires_at: license.expires_at
+        },
         device: existingDevice.rows[0]
       });
     }
@@ -930,7 +832,13 @@ app.post('/api/licenses/activate', async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Device activated successfully',
-      license: license,
+      license: {
+        license_key: license.license_key,
+        company_name: license.company_name,
+        max_devices: license.max_devices,
+        grace_period_days: license.grace_period_days,
+        expires_at: license.expires_at
+      },
       device: deviceResult.rows[0]
     });
 
@@ -940,7 +848,7 @@ app.post('/api/licenses/activate', async (req, res) => {
   }
 });
 
-// Verify license
+// Verify license (with grace period support)
 app.post('/api/licenses/verify', async (req, res) => {
   const { license_key, device_id } = req.body;
 
@@ -950,47 +858,92 @@ app.post('/api/licenses/verify', async (req, res) => {
 
   try {
     const result = await pool.query(`
-      SELECT l.*, ld.id as device_record_id
+      SELECT l.*, ld.id as device_record_id, ld.last_seen
       FROM licenses l
       LEFT JOIN license_devices ld ON l.id = ld.license_id AND ld.device_id = $2
       WHERE l.license_key = $1
     `, [license_key, device_id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ valid: false, error: 'Invalid license key' });
+      return res.status(404).json({ 
+        valid: false, 
+        error: 'Invalid license key',
+        should_retry: false
+      });
     }
 
     const license = result.rows[0];
 
     if (!license.is_active) {
-      return res.json({ valid: false, error: 'License is inactive' });
+      return res.json({ 
+        valid: false, 
+        error: 'License is inactive',
+        should_retry: false
+      });
     }
 
     if (license.expires_at && new Date(license.expires_at) < new Date()) {
-      return res.json({ valid: false, error: 'License has expired' });
+      return res.json({ 
+        valid: false, 
+        error: 'License has expired',
+        expired_at: license.expires_at,
+        should_retry: false
+      });
     }
 
     if (!license.device_record_id) {
-      return res.json({ valid: false, error: 'Device not activated' });
+      return res.json({ 
+        valid: false, 
+        error: 'Device not activated',
+        should_retry: false
+      });
     }
 
+    // Update last_seen timestamp
     await pool.query(
       'UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1',
       [license.device_record_id]
     );
 
+    // Return license info with grace period
     res.json({ 
       valid: true,
+      verified_at: new Date().toISOString(),
       license: {
         company_name: license.company_name,
         expires_at: license.expires_at,
-        max_devices: license.max_devices
+        max_devices: license.max_devices,
+        grace_period_days: license.grace_period_days,
+        last_verified: new Date().toISOString()
       }
     });
 
   } catch (err) {
     console.error('License verification error:', err);
-    res.status(500).json({ valid: false, error: 'Verification failed' });
+    res.status(500).json({ 
+      valid: false, 
+      error: 'Verification failed',
+      should_retry: true // Network error, can retry
+    });
+  }
+});
+
+// Get license info (offline-friendly endpoint)
+app.get('/api/licenses/info/:licenseKey', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT license_key, company_name, max_devices, grace_period_days, expires_at, is_active FROM licenses WHERE license_key = $1',
+      [req.params.licenseKey]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'License not found' });
+    }
+
+    res.json({ license: result.rows[0] });
+  } catch (err) {
+    console.error('Error fetching license info:', err);
+    res.status(500).json({ error: 'Failed to fetch license info' });
   }
 });
 
@@ -1028,5 +981,6 @@ app.post('/api/licenses/deactivate', async (req, res) => {
 // Start server
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 Grace Period Support: ENABLED`);
   await initDatabase();
 });
