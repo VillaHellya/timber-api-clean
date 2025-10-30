@@ -31,17 +31,20 @@
         .drop-zone:hover, .drop-zone.dragover { background: #e8ebff; border-color: #764ba2; transform: scale(1.02); }
         .drop-zone-icon { font-size: 60px; margin-bottom: 20px; }
         .category-section { margin: 30px 0; }
-        .category-group { margin-bottom: 30px; background: #f8f9ff; border-radius: 12px; padding: 20px; }
-        .category-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #667eea; }
-        .category-title { font-size: 20px; font-weight: bold; color: #667eea; }
-        .file-count { background: #667eea; color: white; padding: 5px 15px; border-radius: 20px; font-size: 14px; }
-        .dataset-list { display: grid; gap: 10px; }
-        .dataset-item { background: white; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e0e7ff; transition: transform 0.2s; }
-        .dataset-item:hover { transform: translateX(5px); box-shadow: 0 2px 10px rgba(102, 126, 234, 0.2); }
-        .dataset-name { font-weight: 500; color: #333; }
-        .dataset-meta { color: #666; font-size: 14px; margin-top: 5px; }
-        .delete-btn { background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .category-group { margin-bottom: 20px; background: #f8f9ff; border-radius: 12px; padding: 15px; }
+        .category-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2px solid #667eea; }
+        .category-title { font-size: 18px; font-weight: bold; color: #667eea; }
+        .file-count { background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; }
+        .collapse-icon { font-size: 14px; color: #667eea; transition: transform 0.3s; }
+        .dataset-list { display: grid; gap: 8px; }
+        .dataset-item-compact { background: white; padding: 10px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e0e7ff; transition: transform 0.2s; }
+        .dataset-item-compact:hover { transform: translateX(5px); box-shadow: 0 2px 10px rgba(102, 126, 234, 0.2); }
+        .dataset-name { font-weight: 500; color: #333; font-size: 14px; }
+        .dataset-meta { color: #666; font-size: 12px; }
+        .delete-btn { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; }
         .delete-btn:hover { background: #c82333; }
+        .delete-btn-small { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .delete-btn-small:hover { background: #c82333; }
         .message { padding: 15px; border-radius: 8px; margin: 20px 0; display: none; }
         .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
@@ -276,26 +279,71 @@
                 acc[item.category].push(item);
                 return acc;
             }, {});
+            
             container.innerHTML = Object.entries(grouped).map(([category, files]) => `
                 <div class="category-group">
-                    <div class="category-header">
-                        <span class="category-title">${category}</span>
-                        <span class="file-count">${files.length} fișiere</span>
+                    <div class="category-header" onclick="toggleCategory('${category}')" style="cursor: pointer;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="collapse-icon" id="icon-${category}">▼</span>
+                            <span class="category-title">${category}</span>
+                            <span class="file-count">${files.length} fișiere</span>
+                        </div>
+                        ${currentUser.role === 'admin' || hasDeletePermission(category) ? 
+                            `<button class="delete-btn" onclick="event.stopPropagation(); deleteCategoryConfirm('${category}')" style="font-size: 12px;">🗑️ Șterge categoria</button>` : 
+                            ''}
                     </div>
-                    <div class="dataset-list">
+                    <div class="dataset-list" id="list-${category}">
                         ${files.map(file => `
-                            <div class="dataset-item">
-                                <div>
-                                    <div class="dataset-name">${file.filename}</div>
-                                    <div class="dataset-meta">📊 ${file.record_count} înregistrări | 📅 ${new Date(file.uploaded_at).toLocaleDateString('ro-RO')}</div>
+                            <div class="dataset-item-compact">
+                                <div class="dataset-name">${file.filename}</div>
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div class="dataset-meta">📊 ${file.record_count} | 📅 ${new Date(file.uploaded_at).toLocaleDateString('ro-RO')}</div>
+                                    ${currentUser.role === 'admin' || hasDeletePermission(category) ? 
+                                        `<button class="delete-btn-small" onclick="deleteDataset(${file.id}, '${file.filename}')">🗑️</button>` : ''}
                                 </div>
-                                ${currentUser.role === 'admin' || hasDeletePermission(category) ? 
-                                    `<button class="delete-btn" onclick="deleteDataset(${file.id}, '${file.filename}')">🗑️ Șterge</button>` : ''}
                             </div>
                         `).join('')}
                     </div>
                 </div>
             `).join('');
+        }
+
+        function toggleCategory(category) {
+            const list = document.getElementById('list-' + category);
+            const icon = document.getElementById('icon-' + category);
+            if (list.style.display === 'none') {
+                list.style.display = 'grid';
+                icon.textContent = '▼';
+            } else {
+                list.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        }
+
+        async function deleteCategoryConfirm(category) {
+            const count = allDatasets.filter(d => d.category === category).length;
+            if (!confirm(`Sigur vrei să ștergi ÎNTREAGA categorie "${category}" cu ${count} fișiere?`)) return;
+            
+            document.getElementById('loader').style.display = 'block';
+            const files = allDatasets.filter(d => d.category === category);
+            let successCount = 0;
+            
+            for (const file of files) {
+                try {
+                    const response = await fetch(`/api/data/${file.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) successCount++;
+                } catch (err) {
+                    console.error('Error deleting:', err);
+                }
+            }
+            
+            document.getElementById('loader').style.display = 'none';
+            showMessage(`${successCount} fișiere șterse din categoria "${category}"`, 'success');
+            loadCategories();
+            loadDatasets();
         }
 
         document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -338,6 +386,10 @@
             document.getElementById('uploadBtn').disabled = false;
         }
 
+        function stripTimestamp(filename) {
+            return filename.replace(/_\d{4}-\d{2}-\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}Z/g, '');
+        }
+
         document.getElementById('uploadBtn').addEventListener('click', async () => {
             const category = document.getElementById('categorySelect').value || 
                            document.getElementById('newCategory').value.trim();
@@ -351,12 +403,27 @@
             }
             document.getElementById('uploadBtn').disabled = true;
             document.getElementById('loader').style.display = 'block';
+            
+            const existingFiles = allDatasets
+                .filter(d => d.category === category)
+                .map(d => stripTimestamp(d.filename));
+            
             let successCount = 0;
             let errorCount = 0;
+            let duplicateCount = 0;
+
             for (const file of selectedFiles) {
+                const baseFilename = stripTimestamp(file.name);
+                
+                if (existingFiles.includes(baseFilename)) {
+                    duplicateCount++;
+                    continue;
+                }
+                
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('category', category);
+
                 try {
                     const response = await fetch('/api/upload', {
                         method: 'POST',
@@ -365,6 +432,7 @@
                     });
                     if (response.ok) {
                         successCount++;
+                        existingFiles.push(baseFilename);
                     } else {
                         errorCount++;
                     }
@@ -372,18 +440,23 @@
                     errorCount++;
                 }
             }
+
             document.getElementById('loader').style.display = 'none';
             document.getElementById('uploadBtn').disabled = false;
+
+            let message = '';
+            if (successCount > 0) message += `✅ ${successCount} fișiere uploadate! `;
+            if (duplicateCount > 0) message += `⚠️ ${duplicateCount} duplicate ignorate! `;
+            if (errorCount > 0) message += `❌ ${errorCount} erori!`;
+            
+            showMessage(message, successCount > 0 ? 'success' : 'error');
+            
             if (successCount > 0) {
-                showMessage(`✅ ${successCount} fișiere uploadate cu succes!`, 'success');
                 loadCategories();
                 loadDatasets();
                 selectedFiles = [];
                 fileInput.value = '';
                 folderInput.value = '';
-            }
-            if (errorCount > 0) {
-                showMessage(`⚠️ ${errorCount} fișiere au eșuat (duplicate sau erori)`, 'error');
             }
         });
 
