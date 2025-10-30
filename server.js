@@ -82,6 +82,36 @@ async function initDatabase() {
       )
     `);
 
+    // License tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS licenses (
+        id SERIAL PRIMARY KEY,
+        license_key VARCHAR(50) UNIQUE NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        company_name VARCHAR(100),
+        max_devices INTEGER DEFAULT 3,
+        expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS license_devices (
+        id SERIAL PRIMARY KEY,
+        license_id INTEGER REFERENCES licenses(id) ON DELETE CASCADE,
+        device_id VARCHAR(255) NOT NULL,
+        device_name VARCHAR(100),
+        device_model VARCHAR(100),
+        activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(license_id, device_id)
+      )
+    `);
+
+    console.log('✅ License tables initialized');
+
     // Create default admin if not exists
     try {
       const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
@@ -165,8 +195,8 @@ const checkCategoryAccess = (permission) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    message: 'Timber Inventory API with Authentication',
-    version: '4.0.0',
+    message: 'Timber Inventory API with Authentication & Licenses',
+    version: '5.0.0',
     status: 'running',
     endpoints: {
       auth: {
@@ -177,7 +207,14 @@ app.get('/', (req, res) => {
         users: 'GET /api/admin/users',
         createUser: 'POST /api/admin/users',
         updateUser: 'PUT /api/admin/users/:id',
-        deleteUser: 'DELETE /api/admin/users/:id'
+        deleteUser: 'DELETE /api/admin/users/:id',
+        licenses: 'GET /api/admin/licenses',
+        createLicense: 'POST /api/admin/licenses'
+      },
+      licenses: {
+        activate: 'POST /api/licenses/activate',
+        verify: 'POST /api/licenses/verify',
+        deactivate: 'POST /api/licenses/deactivate'
       },
       data: {
         upload: 'POST /api/upload [Auth Required]',
@@ -242,7 +279,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.username, u.full_name, u.role,
-             json_agg(
+              json_agg(
                 json_build_object(
                   'category', uc.category,
                   'can_read', uc.can_read,
@@ -673,6 +710,318 @@ app.delete('/api/data/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error deleting dataset:', err);
     res.status(500).json({ error: 'Failed to delete dataset' });
+  }
+});
+
+// ============= LICENSE MANAGEMENT =============
+
+// Generate license key
+function generateLicenseKey() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const segments = 4;
+  const segmentLength = 4;
+  
+  let key = 'TBR-';
+  for (let i = 0; i < segments; i++) {
+    for (let j = 0; j < segmentLength; j++) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    if (i < segments - 1) key += '-';
+  }
+  return key;
+}
+
+// Get all licenses (admin only)
+app.get('/api/admin/licenses', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT 
+        l.*,
+        u.username,
+        u.full_name,
+        COUNT(ld.id) as active_devices
+      FROM licenses l
+      LEFT JOIN users u ON l.user_id = u.id
+      LEFT JOIN license_devices ld ON l.id = ld.license_id
+      GROUP BY l.id, u.username, u.full_name
+      ORDER BY l.created_at DESC
+    `);
+
+    res.json({ licenses: result.rows, total: result.rows.length });
+  } catch (err) {
+    console.error('Error fetching licenses:', err);
+    res.status(500).json({ error: 'Failed to fetch licenses' });
+  }
+});
+
+// Create license (admin only)
+app.post('/api/admin/licenses', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { user_id, company_name, max_devices, expires_at, notes } = req.body;
+
+  try {
+    const licenseKey = generateLicenseKey();
+    
+    const result = await pool.query(
+      `INSERT INTO licenses (license_key, user_id, company_name, max_devices, expires_at, notes) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING *`,
+      [licenseKey, user_id || null, company_name || null, max_devices || 3, expires_at || null, notes || null]
+    );
+
+    res.json({ success: true, license: result.rows[0] });
+  } catch (err) {
+    console.error('Create license error:', err);
+    res.status(500).json({ error: 'Failed to create license' });
+  }
+});
+
+// Update license (admin only)
+app.put('/api/admin/licenses/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { id } = req.params;
+  const { user_id, company_name, max_devices, expires_at, is_active, notes } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE licenses 
+       SET user_id = $1, company_name = $2, max_devices = $3, expires_at = $4, is_active = $5, notes = $6
+       WHERE id = $7
+       RETURNING *`,
+      [user_id || null, company_name || null, max_devices, expires_at || null, is_active, notes || null, id]
+    );
+
+    res.json({ success: true, license: result.rows[0] });
+  } catch (err) {
+    console.error('Update license error:', err);
+    res.status(500).json({ error: 'Failed to update license' });
+  }
+});
+
+// Delete license (admin only)
+app.delete('/api/admin/licenses/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    await pool.query('DELETE FROM licenses WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete license error:', err);
+    res.status(500).json({ error: 'Failed to delete license' });
+  }
+});
+
+// Get devices for a license (admin only)
+app.get('/api/admin/licenses/:id/devices', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM license_devices WHERE license_id = $1 ORDER BY activated_at DESC',
+      [req.params.id]
+    );
+
+    res.json({ devices: result.rows });
+  } catch (err) {
+    console.error('Error fetching devices:', err);
+    res.status(500).json({ error: 'Failed to fetch devices' });
+  }
+});
+
+// Remove device from license (admin only)
+app.delete('/api/admin/licenses/:licenseId/devices/:deviceId', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    await pool.query(
+      'DELETE FROM license_devices WHERE license_id = $1 AND id = $2',
+      [req.params.licenseId, req.params.deviceId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Remove device error:', err);
+    res.status(500).json({ error: 'Failed to remove device' });
+  }
+});
+
+// ============= PUBLIC LICENSE ENDPOINTS (for Android) =============
+
+// Activate license on device
+app.post('/api/licenses/activate', async (req, res) => {
+  const { license_key, device_id, device_name, device_model } = req.body;
+
+  if (!license_key || !device_id) {
+    return res.status(400).json({ error: 'License key and device ID required' });
+  }
+
+  try {
+    const licenseResult = await pool.query(
+      'SELECT * FROM licenses WHERE license_key = $1',
+      [license_key]
+    );
+
+    if (licenseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid license key' });
+    }
+
+    const license = licenseResult.rows[0];
+
+    if (!license.is_active) {
+      return res.status(403).json({ error: 'License is inactive' });
+    }
+
+    if (license.expires_at && new Date(license.expires_at) < new Date()) {
+      return res.status(403).json({ error: 'License has expired' });
+    }
+
+    const existingDevice = await pool.query(
+      'SELECT * FROM license_devices WHERE license_id = $1 AND device_id = $2',
+      [license.id, device_id]
+    );
+
+    if (existingDevice.rows.length > 0) {
+      await pool.query(
+        'UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1',
+        [existingDevice.rows[0].id]
+      );
+      return res.json({ 
+        success: true, 
+        message: 'Device already activated',
+        license: license,
+        device: existingDevice.rows[0]
+      });
+    }
+
+    const deviceCount = await pool.query(
+      'SELECT COUNT(*) FROM license_devices WHERE license_id = $1',
+      [license.id]
+    );
+
+    if (parseInt(deviceCount.rows[0].count) >= license.max_devices) {
+      return res.status(403).json({ 
+        error: 'Device limit reached',
+        max_devices: license.max_devices
+      });
+    }
+
+    const deviceResult = await pool.query(
+      `INSERT INTO license_devices (license_id, device_id, device_name, device_model) 
+       VALUES ($1, $2, $3, $4) 
+       RETURNING *`,
+      [license.id, device_id, device_name || 'Unknown', device_model || 'Unknown']
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Device activated successfully',
+      license: license,
+      device: deviceResult.rows[0]
+    });
+
+  } catch (err) {
+    console.error('License activation error:', err);
+    res.status(500).json({ error: 'Activation failed' });
+  }
+});
+
+// Verify license
+app.post('/api/licenses/verify', async (req, res) => {
+  const { license_key, device_id } = req.body;
+
+  if (!license_key || !device_id) {
+    return res.status(400).json({ error: 'License key and device ID required' });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT l.*, ld.id as device_record_id
+      FROM licenses l
+      LEFT JOIN license_devices ld ON l.id = ld.license_id AND ld.device_id = $2
+      WHERE l.license_key = $1
+    `, [license_key, device_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ valid: false, error: 'Invalid license key' });
+    }
+
+    const license = result.rows[0];
+
+    if (!license.is_active) {
+      return res.json({ valid: false, error: 'License is inactive' });
+    }
+
+    if (license.expires_at && new Date(license.expires_at) < new Date()) {
+      return res.json({ valid: false, error: 'License has expired' });
+    }
+
+    if (!license.device_record_id) {
+      return res.json({ valid: false, error: 'Device not activated' });
+    }
+
+    await pool.query(
+      'UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1',
+      [license.device_record_id]
+    );
+
+    res.json({ 
+      valid: true,
+      license: {
+        company_name: license.company_name,
+        expires_at: license.expires_at,
+        max_devices: license.max_devices
+      }
+    });
+
+  } catch (err) {
+    console.error('License verification error:', err);
+    res.status(500).json({ valid: false, error: 'Verification failed' });
+  }
+});
+
+// Deactivate device
+app.post('/api/licenses/deactivate', async (req, res) => {
+  const { license_key, device_id } = req.body;
+
+  if (!license_key || !device_id) {
+    return res.status(400).json({ error: 'License key and device ID required' });
+  }
+
+  try {
+    const licenseResult = await pool.query(
+      'SELECT id FROM licenses WHERE license_key = $1',
+      [license_key]
+    );
+
+    if (licenseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invalid license key' });
+    }
+
+    await pool.query(
+      'DELETE FROM license_devices WHERE license_id = $1 AND device_id = $2',
+      [licenseResult.rows[0].id, device_id]
+    );
+
+    res.json({ success: true, message: 'Device deactivated' });
+
+  } catch (err) {
+    console.error('Deactivation error:', err);
+    res.status(500).json({ error: 'Deactivation failed' });
   }
 });
 
