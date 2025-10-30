@@ -1,6 +1,6 @@
 console.log('✅ Default admin created (username: admin, password: admin123)');
       } else {
-        console.log('✅ Default admin already exists');
+        console.log('✅ Default admin already exists!');
       }
     } catch (adminErr) {
       console.error('⚠️ Admin creation error (non-fatal):', adminErr.message);
