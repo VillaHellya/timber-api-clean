@@ -242,7 +242,14 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.username, u.full_name, u.role,
-              array_agg(uc.category) as categories
+             json_agg(
+                json_build_object(
+                  'category', uc.category,
+                  'can_read', uc.can_read,
+                  'can_write', uc.can_write,
+                  'can_delete', uc.can_delete
+                )
+              ) FILTER (WHERE uc.category IS NOT NULL) as categories
        FROM users u
        LEFT JOIN user_categories uc ON u.id = uc.user_id
        WHERE u.id = $1
