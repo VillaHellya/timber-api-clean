@@ -545,6 +545,196 @@ app.post('/api/licenses/deactivate', async (req, res) => {
   }
 });
 
+// ============================================
+// SYNC ENDPOINTS FOR MOBILE APP
+// ============================================
+
+// GET /api/sync - Sincronizare pentru mobile app
+app.get('/api/sync', authenticateToken, async (req, res) => {
+  try {
+    console.log(`📱 Sync request from user: ${req.user.username} (role: ${req.user.role})`);
+    
+    // Get categorii disponibile pentru user
+    let categoriesQuery;
+    let categoriesParams = [];
+    
+    if (req.user.role === 'admin') {
+      categoriesQuery = 'SELECT DISTINCT category FROM csv_files WHERE category IS NOT NULL ORDER BY category';
+    } else {
+      categoriesQuery = `
+        SELECT DISTINCT category 
+        FROM user_categories 
+        WHERE user_id = $1 AND can_read = true 
+        ORDER BY category
+      `;
+      categoriesParams = [req.user.id];
+    }
+    
+    const categoriesResult = await pool.query(categoriesQuery, categoriesParams);
+    const categories = categoriesResult.rows.map(row => row.category);
+
+    // Get datasets disponibile pentru user
+    let datasetsQuery = `
+      SELECT 
+        f.id, 
+        f.filename, 
+        f.category, 
+        f.app_id, 
+        f.uploaded_at,
+        f.user_id,
+        f.company_id,
+        COUNT(d.id) as record_count,
+        u.username as uploaded_by,
+        c.name as company_name
+      FROM csv_files f 
+      LEFT JOIN csv_data d ON f.id = d.file_id
+      LEFT JOIN users u ON f.user_id = u.id
+      LEFT JOIN companies c ON f.company_id = c.id
+    `;
+    
+    const datasetsParams = [];
+    const whereClauses = [];
+    
+    // Filtru permisiuni
+    if (req.user.role !== 'admin') {
+      whereClauses.push(`f.category IN (SELECT category FROM user_categories WHERE user_id = $${datasetsParams.length + 1} AND can_read = true)`);
+      datasetsParams.push(req.user.id);
+    }
+    
+    if (whereClauses.length > 0) {
+      datasetsQuery += ' WHERE ' + whereClauses.join(' AND ');
+    }
+    
+    datasetsQuery += ' GROUP BY f.id, u.username, c.name ORDER BY f.uploaded_at DESC';
+    
+    const datasetsResult = await pool.query(datasetsQuery, datasetsParams);
+
+    const response = {
+      success: true,
+      categories: categories,
+      datasets: datasetsResult.rows,
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        role: req.user.role,
+        company_id: req.user.company_id || null
+      },
+      synced_at: new Date().toISOString(),
+      server_version: '7.0.0'
+    };
+
+    console.log(`✅ Sync successful: ${categories.length} categories, ${datasetsResult.rows.length} datasets`);
+    res.json(response);
+    
+  } catch (err) {
+    console.error('❌ Sync error:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Sync failed',
+      message: err.message 
+    });
+  }
+});
+
+// GET /api/datasets/:id/data - Download data pentru un dataset specific
+app.get('/api/datasets/:id/data', authenticateToken, async (req, res) => {
+  try {
+    const datasetId = req.params.id;
+    console.log(`📥 Download request for dataset ${datasetId} by user ${req.user.username}`);
+    
+    // Verifică dacă dataset-ul există și ia categoria
+    const fileCheck = await pool.query(
+      'SELECT id, filename, category, app_id, user_id, company_id FROM csv_files WHERE id = $1',
+      [datasetId]
+    );
+    
+    if (fileCheck.rows.length === 0) {
+      console.log(`❌ Dataset ${datasetId} not found`);
+      return res.status(404).json({ 
+        success: false,
+        error: 'Dataset not found' 
+      });
+    }
+    
+    const file = fileCheck.rows[0];
+    const category = file.category;
+    
+    // Verifică permisiuni
+    if (req.user.role !== 'admin') {
+      const permCheck = await pool.query(
+        'SELECT can_read FROM user_categories WHERE user_id = $1 AND category = $2',
+        [req.user.id, category]
+      );
+      
+      if (permCheck.rows.length === 0 || !permCheck.rows[0].can_read) {
+        console.log(`❌ Permission denied for user ${req.user.username} on category ${category}`);
+        return res.status(403).json({ 
+          success: false,
+          error: 'Permission denied for this category' 
+        });
+      }
+    }
+    
+    // Get data
+    const result = await pool.query(
+      'SELECT row_data FROM csv_data WHERE file_id = $1 ORDER BY id',
+      [datasetId]
+    );
+    
+    const data = result.rows.map(row => row.row_data);
+    
+    console.log(`✅ Downloaded ${data.length} rows from dataset ${datasetId}`);
+    
+    res.json({
+      success: true,
+      dataset_id: parseInt(datasetId),
+      filename: file.filename,
+      category: category,
+      app_id: file.app_id,
+      record_count: data.length,
+      data: data,
+      downloaded_at: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error('❌ Download error:', err);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to download data',
+      message: err.message 
+    });
+  }
+});
+
+// GET /api/categories - List categorii (pentru compatibility)
+app.get('/api/categories', authenticateToken, async (req, res) => {
+  try {
+    let query;
+    let params = [];
+    
+    if (req.user.role === 'admin') {
+      query = 'SELECT DISTINCT category FROM csv_files WHERE category IS NOT NULL ORDER BY category';
+    } else {
+      query = 'SELECT DISTINCT category FROM user_categories WHERE user_id = $1 AND can_read = true ORDER BY category';
+      params = [req.user.id];
+    }
+    
+    const result = await pool.query(query, params);
+    const categories = result.rows.map(row => row.category);
+    
+    res.json({ 
+      success: true,
+      categories: categories, 
+      count: categories.length 
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch categories' 
+    });
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🏢 Companies Support: ENABLED`);
