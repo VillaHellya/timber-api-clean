@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ro">
 <head>
@@ -28,7 +27,7 @@
         .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; }
         .stat-card h3 { font-size: 36px; margin-bottom: 10px; }
         .stat-card p { opacity: 0.9; }
-        input[type="text"], input[type="password"], input[type="date"], input[type="number"], select, textarea { width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px; margin-bottom: 15px; }
+        input[type="text"], input[type="password"], input[type="email"], input[type="date"], input[type="number"], select, textarea { width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px; margin-bottom: 15px; }
         textarea { min-height: 80px; resize: vertical; }
         .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .btn:hover { opacity: 0.9; }
@@ -69,7 +68,6 @@
     </style>
 </head>
 <body>
-    <!-- LOGIN SCREEN -->
     <div class="login-container" id="loginContainer">
         <h1>🌲 Admin Panel</h1>
         <p>Timber Inventory API</p>
@@ -85,7 +83,6 @@
         <p style="margin-top: 20px; font-size: 12px; color: #999;">Contactați administratorul pentru acces</p>
     </div>
 
-    <!-- MAIN APP -->
     <div class="main-app" id="mainApp">
         <div class="header">
             <h1>🌲 Admin Panel</h1>
@@ -96,14 +93,12 @@
             </div>
         </div>
 
-        <!-- TABS -->
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
             <button class="tab-btn" onclick="switchTab('users')">👥 Useri</button>
             <button class="tab-btn" onclick="switchTab('licenses')">🔐 Licențe</button>
         </div>
 
-        <!-- DASHBOARD TAB -->
         <div class="container active" id="dashboardTab">
             <div class="stats">
                 <div class="stat-card">
@@ -127,7 +122,6 @@
             <p>Folosește tab-urile de sus pentru a gestiona userii și licențele aplicațiilor mobile.</p>
         </div>
 
-        <!-- USERS TAB -->
         <div class="container" id="usersTab">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2>👥 Useri</h2>
@@ -139,6 +133,7 @@
                     <tr>
                         <th>Username</th>
                         <th>Nume Complet</th>
+                        <th>Email</th>
                         <th>Rol</th>
                         <th>Status</th>
                         <th>Categorii</th>
@@ -150,7 +145,6 @@
             </table>
         </div>
 
-        <!-- LICENSES TAB -->
         <div class="container" id="licensesTab">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2>🔐 Licențe Mobile</h2>
@@ -163,6 +157,7 @@
                         <th>License Key</th>
                         <th>Companie</th>
                         <th>User</th>
+                        <th>Email</th>
                         <th>Devices</th>
                         <th>Status</th>
                         <th>Expirare</th>
@@ -174,7 +169,6 @@
         </div>
     </div>
 
-    <!-- USER MODAL -->
     <div id="userModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -188,6 +182,9 @@
                 
                 <label>Nume Complet</label>
                 <input type="text" id="fullName">
+                
+                <label>Email</label>
+                <input type="email" id="email" placeholder="exemplu@domeniu.ro">
                 
                 <label>Parolă (opțional - lasă gol pentru a păstra parola)</label>
                 <div class="password-toggle">
@@ -217,7 +214,6 @@
         </div>
     </div>
 
-    <!-- LICENSE MODAL -->
     <div id="licenseModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -241,7 +237,10 @@
                 </select>
                 
                 <label>Dispozitive Maxime</label>
-                <input type="number" id="maxDevices" value="3" min="1" max="10">
+                <input type="number" id="maxDevices" value="3" min="1" max="50">
+                
+                <label>Grace Period (zile offline)</label>
+                <input type="number" id="gracePeriodDays" value="7" min="1" max="365">
                 
                 <label>Data Expirare (opțional)</label>
                 <input type="date" id="expiresAt">
@@ -261,7 +260,6 @@
         </div>
     </div>
 
-    <!-- DEVICES MODAL -->
     <div id="devicesModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -281,7 +279,6 @@
         let editingLicenseId = null;
         let currentLicenseForDevices = null;
 
-        // LOGIN
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('loginUsername').value;
@@ -407,6 +404,7 @@
                     <tr>
                         <td><strong>${user.username}</strong></td>
                         <td>${user.full_name || '-'}</td>
+                        <td>${user.email || '-'}</td>
                         <td><span class="badge badge-${user.role}">${user.role.toUpperCase()}</span></td>
                         <td><span class="badge badge-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Activ' : 'Inactiv'}</span></td>
                         <td>${user.categories && user.categories.length > 0 ? user.categories.map(c => c.category).filter(Boolean).join(', ') : '-'}</td>
@@ -444,6 +442,7 @@
                             <td><code style="background: #f8f9ff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${license.license_key}</code></td>
                             <td>${license.company_name || '-'}</td>
                             <td>${license.full_name || license.username || '-'}</td>
+                            <td>${license.email || '-'}</td>
                             <td>
                                 <span style="cursor: pointer; color: #667eea; text-decoration: underline;" onclick="viewDevices(${license.id}, '${license.license_key}')">
                                     ${license.active_devices}/${license.max_devices} 📱
@@ -465,7 +464,6 @@
             }
         }
 
-        // USER MANAGEMENT
         async function openCreateUserModal() {
             editingUserId = null;
             document.getElementById('userModalTitle').textContent = 'Creare User Nou';
@@ -487,6 +485,7 @@
             document.getElementById('userId').value = user.id;
             document.getElementById('username').value = user.username;
             document.getElementById('fullName').value = user.full_name || '';
+            document.getElementById('email').value = user.email || '';
             document.getElementById('password').value = '';
             document.getElementById('role').value = user.role;
             document.getElementById('isActive').checked = user.is_active;
@@ -565,6 +564,7 @@
             const userId = document.getElementById('userId').value;
             const username = document.getElementById('username').value;
             const fullName = document.getElementById('fullName').value;
+            const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const role = document.getElementById('role').value;
             const isActive = document.getElementById('isActive').checked;
@@ -585,6 +585,7 @@
             const userData = {
                 username,
                 full_name: fullName,
+                email: email,
                 role,
                 is_active: isActive,
                 categories
@@ -642,7 +643,6 @@
             }
         }
 
-        // LICENSE MANAGEMENT
         async function openCreateLicenseModal() {
             editingLicenseId = null;
             document.getElementById('licenseModalTitle').textContent = 'Creare Licență Nouă';
@@ -650,12 +650,12 @@
             document.getElementById('licenseId').value = '';
             document.getElementById('licenseActive').checked = true;
             document.getElementById('maxDevices').value = 3;
+            document.getElementById('gracePeriodDays').value = 7;
             document.getElementById('licenseKeyDisplay').style.display = 'none';
             
-            // Load users for dropdown
             const select = document.getElementById('licenseUserId');
             select.innerHTML = '<option value="">Niciun user</option>' + 
-                allUsers.map(u => `<option value="${u.id}">${u.full_name || u.username}</option>`).join('');
+                allUsers.map(u => `<option value="${u.id}">${u.full_name || u.username} ${u.email ? '(' + u.email + ')' : ''}</option>`).join('');
             
             document.getElementById('licenseModal').style.display = 'block';
         }
@@ -668,6 +668,7 @@
             document.getElementById('licenseId').value = license.id;
             document.getElementById('companyName').value = license.company_name || '';
             document.getElementById('maxDevices').value = license.max_devices;
+            document.getElementById('gracePeriodDays').value = license.grace_period_days || 7;
             document.getElementById('expiresAt').value = license.expires_at ? license.expires_at.split('T')[0] : '';
             document.getElementById('licenseActive').checked = license.is_active;
             document.getElementById('licenseNotes').value = license.notes || '';
@@ -677,7 +678,7 @@
             
             const select = document.getElementById('licenseUserId');
             select.innerHTML = '<option value="">Niciun user</option>' + 
-                allUsers.map(u => `<option value="${u.id}" ${u.id === license.user_id ? 'selected' : ''}>${u.full_name || u.username}</option>`).join('');
+                allUsers.map(u => `<option value="${u.id}" ${u.id === license.user_id ? 'selected' : ''}>${u.full_name || u.username} ${u.email ? '(' + u.email + ')' : ''}</option>`).join('');
             
             document.getElementById('licenseModal').style.display = 'block';
         }
@@ -695,6 +696,7 @@
             const companyName = document.getElementById('companyName').value;
             const userId = document.getElementById('licenseUserId').value;
             const maxDevices = parseInt(document.getElementById('maxDevices').value);
+            const gracePeriodDays = parseInt(document.getElementById('gracePeriodDays').value);
             const expiresAt = document.getElementById('expiresAt').value;
             const isActive = document.getElementById('licenseActive').checked;
             const notes = document.getElementById('licenseNotes').value;
@@ -703,6 +705,7 @@
                 company_name: companyName,
                 user_id: userId || null,
                 max_devices: maxDevices,
+                grace_period_days: gracePeriodDays,
                 expires_at: expiresAt || null,
                 is_active: isActive,
                 notes: notes
@@ -819,8 +822,8 @@
                 });
 
                 if (response.ok) {
-                    viewDevices(licenseId, ''); // Refresh device list
-                    loadLicenses(); // Refresh licenses table
+                    viewDevices(licenseId, '');
+                    loadLicenses();
                 } else {
                     alert('Eroare la eliminarea dispozitivului');
                 }
@@ -829,7 +832,6 @@
             }
         }
 
-        // Close modals when clicking outside
         window.onclick = function(event) {
             if (event.target.className === 'modal') {
                 event.target.style.display = 'none';

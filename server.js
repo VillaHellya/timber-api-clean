@@ -36,7 +36,7 @@ async function initDatabase() {
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS csv_files (id SERIAL PRIMARY KEY, filename VARCHAR(255) NOT NULL, category VARCHAR(50) DEFAULT 'general', uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS csv_data (id SERIAL PRIMARY KEY, file_id INTEGER REFERENCES csv_files(id) ON DELETE CASCADE, row_data JSONB NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, full_name VARCHAR(100), role VARCHAR(20) DEFAULT 'user', is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, full_name VARCHAR(100), email VARCHAR(255), role VARCHAR(20) DEFAULT 'user', is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS user_categories (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, category VARCHAR(50) NOT NULL, can_read BOOLEAN DEFAULT true, can_write BOOLEAN DEFAULT false, can_delete BOOLEAN DEFAULT false, UNIQUE(user_id, category))`);
     await pool.query(`CREATE TABLE IF NOT EXISTS licenses (id SERIAL PRIMARY KEY, license_key VARCHAR(50) UNIQUE NOT NULL, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, company_name VARCHAR(100), max_devices INTEGER DEFAULT 3, grace_period_days INTEGER DEFAULT 7, expires_at TIMESTAMP, is_active BOOLEAN DEFAULT true, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS license_devices (id SERIAL PRIMARY KEY, license_id INTEGER REFERENCES licenses(id) ON DELETE CASCADE, device_id VARCHAR(255) NOT NULL, device_name VARCHAR(100), device_model VARCHAR(100), activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(license_id, device_id))`);
@@ -44,8 +44,12 @@ async function initDatabase() {
     try {
       await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS grace_period_days INTEGER DEFAULT 7`);
     } catch (err) {}
+    
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
+    } catch (err) {}
 
-    console.log('✅ License tables initialized with grace period support');
+    console.log('✅ Database tables initialized with email support');
 
     try {
       const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
@@ -60,7 +64,7 @@ async function initDatabase() {
       console.error('⚠️ Admin creation error (non-fatal):', adminErr.message);
     }
 
-    console.log('✅ Database tables initialized');
+    console.log('✅ Database initialization complete');
   } catch (err) {
     console.error('❌ Database initialization error:', err);
   }
@@ -97,7 +101,7 @@ const checkCategoryAccess = (permission) => {
 };
 
 app.get('/', (req, res) => {
-  res.json({message: 'Timber Inventory API with Grace Period Support', version: '5.1.0', status: 'running', features: ['offline_mode', 'grace_period', 'license_management']});
+  res.json({message: 'Timber Inventory API with Email Support', version: '5.2.0', status: 'running', features: ['offline_mode', 'grace_period', 'license_management', 'email_support']});
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -110,7 +114,7 @@ app.post('/api/auth/login', async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({token: token, user: {id: user.id, username: user.username, full_name: user.full_name, role: user.role}});
+    res.json({token: token, user: {id: user.id, username: user.username, full_name: user.full_name, email: user.email, role: user.role}});
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
@@ -119,7 +123,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.role, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN user_categories uc ON u.id = uc.user_id WHERE u.id = $1 GROUP BY u.id`, [req.user.id]);
+    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.email, u.role, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN user_categories uc ON u.id = uc.user_id WHERE u.id = $1 GROUP BY u.id`, [req.user.id]);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Failed to get user info' });
@@ -129,7 +133,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 app.get('/api/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   try {
-    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.role, u.is_active, u.created_at, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN user_categories uc ON u.id = uc.user_id GROUP BY u.id ORDER BY u.created_at DESC`);
+    const result = await pool.query(`SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at, json_agg(json_build_object('category', uc.category, 'can_read', uc.can_read, 'can_write', uc.can_write, 'can_delete', uc.can_delete)) FILTER (WHERE uc.category IS NOT NULL) as categories FROM users u LEFT JOIN user_categories uc ON u.id = uc.user_id GROUP BY u.id ORDER BY u.created_at DESC`);
     res.json({ users: result.rows, total: result.rows.length });
   } catch (err) {
     console.error('Error fetching users:', err);
@@ -139,13 +143,13 @@ app.get('/api/admin/users', authenticateToken, async (req, res) => {
 
 app.post('/api/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-  const { username, password, full_name, role, categories } = req.body;
+  const { username, password, full_name, email, role, categories } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const hashedPassword = await bcrypt.hash(password, 10);
-    const userResult = await client.query('INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4) RETURNING id', [username, hashedPassword, full_name || username, role || 'user']);
+    const userResult = await client.query('INSERT INTO users (username, password_hash, full_name, email, role) VALUES ($1, $2, $3, $4, $5) RETURNING id', [username, hashedPassword, full_name || username, email || null, role || 'user']);
     const userId = userResult.rows[0].id;
     if (categories && categories.length > 0) {
       for (const cat of categories) {
@@ -170,7 +174,7 @@ app.post('/api/admin/users', authenticateToken, async (req, res) => {
 app.put('/api/admin/users/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   const userId = req.params.id;
-  const { full_name, role, is_active, categories, password } = req.body;
+  const { full_name, email, role, is_active, categories, password } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -178,6 +182,7 @@ app.put('/api/admin/users/:id', authenticateToken, async (req, res) => {
     const updateParams = [];
     let paramCount = 1;
     if (full_name !== undefined) { updateQuery += `full_name = $${paramCount}, `; updateParams.push(full_name); paramCount++; }
+    if (email !== undefined) { updateQuery += `email = $${paramCount}, `; updateParams.push(email); paramCount++; }
     if (role !== undefined) { updateQuery += `role = $${paramCount}, `; updateParams.push(role); paramCount++; }
     if (is_active !== undefined) { updateQuery += `is_active = $${paramCount}, `; updateParams.push(is_active); paramCount++; }
     if (password) { const hashedPassword = await bcrypt.hash(password, 10); updateQuery += `password_hash = $${paramCount}, `; updateParams.push(hashedPassword); paramCount++; }
@@ -358,7 +363,7 @@ function generateLicenseKey() {
 app.get('/api/admin/licenses', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   try {
-    const result = await pool.query(`SELECT l.*, u.username, u.full_name, COUNT(ld.id) as active_devices FROM licenses l LEFT JOIN users u ON l.user_id = u.id LEFT JOIN license_devices ld ON l.id = ld.license_id GROUP BY l.id, u.username, u.full_name ORDER BY l.created_at DESC`);
+    const result = await pool.query(`SELECT l.*, u.username, u.full_name, u.email, COUNT(ld.id) as active_devices FROM licenses l LEFT JOIN users u ON l.user_id = u.id LEFT JOIN license_devices ld ON l.id = ld.license_id GROUP BY l.id, u.username, u.full_name, u.email ORDER BY l.created_at DESC`);
     res.json({ licenses: result.rows, total: result.rows.length });
   } catch (err) {
     console.error('Error fetching licenses:', err);
@@ -494,6 +499,7 @@ app.post('/api/licenses/deactivate', async (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📧 Email Support: ENABLED`);
   console.log(`📱 Grace Period Support: ENABLED`);
   await initDatabase();
 });
