@@ -39,15 +39,16 @@ async function initDatabase() {
     await pool.query(`CREATE TABLE IF NOT EXISTS csv_data (id SERIAL PRIMARY KEY, file_id INTEGER REFERENCES csv_files(id) ON DELETE CASCADE, row_data JSONB NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, full_name VARCHAR(100), email VARCHAR(255), company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL, role VARCHAR(20) DEFAULT 'user', is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS user_categories (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, category VARCHAR(50) NOT NULL, can_read BOOLEAN DEFAULT true, can_write BOOLEAN DEFAULT false, can_delete BOOLEAN DEFAULT false, UNIQUE(user_id, category))`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS licenses (id SERIAL PRIMARY KEY, license_key VARCHAR(50) UNIQUE NOT NULL, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL, company_name VARCHAR(100), max_devices INTEGER DEFAULT 3, grace_period_days INTEGER DEFAULT 7, expires_at TIMESTAMP, is_active BOOLEAN DEFAULT true, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS licenses (id SERIAL PRIMARY KEY, license_key VARCHAR(50) UNIQUE NOT NULL, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL, company_name VARCHAR(100), app_id VARCHAR(100) DEFAULT 'timber-inventory', max_devices INTEGER DEFAULT 3, grace_period_days INTEGER DEFAULT 7, expires_at TIMESTAMP, is_active BOOLEAN DEFAULT true, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS license_devices (id SERIAL PRIMARY KEY, license_id INTEGER REFERENCES licenses(id) ON DELETE CASCADE, device_id VARCHAR(255) NOT NULL, device_name VARCHAR(100), device_model VARCHAR(100), activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(license_id, device_id))`);
     
     try { await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS grace_period_days INTEGER DEFAULT 7`); } catch (err) {}
     try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)`); } catch (err) {}
     try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL`); } catch (err) {}
     try { await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL`); } catch (err) {}
+    try { await pool.query(`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS app_id VARCHAR(100) DEFAULT 'timber-inventory'`); console.log('✅ Added app_id column'); } catch (err) {}
 
-    console.log('✅ Database tables initialized with companies support');
+    console.log('✅ Database tables initialized with app_id support');
 
     try {
       const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
@@ -94,7 +95,7 @@ const checkCategoryAccess = (permission) => {
 };
 
 app.get('/', (req, res) => {
-  res.json({message: 'Timber API with Companies', version: '6.0.0', status: 'running', features: ['companies', 'users', 'licenses', 'offline_mode']});
+  res.json({message: 'Timber API with Multi-App Support', version: '7.0.0', status: 'running', features: ['companies', 'users', 'licenses', 'multi_app', 'offline_mode']});
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -419,10 +420,10 @@ app.get('/api/admin/licenses', authenticateToken, async (req, res) => {
 
 app.post('/api/admin/licenses', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-  const { user_id, company_id, company_name, max_devices, grace_period_days, expires_at, notes } = req.body;
+  const { user_id, company_id, company_name, app_id, max_devices, grace_period_days, expires_at, notes } = req.body;
   try {
     const licenseKey = generateLicenseKey();
-    const result = await pool.query(`INSERT INTO licenses (license_key, user_id, company_id, company_name, max_devices, grace_period_days, expires_at, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`, [licenseKey, user_id || null, company_id || null, company_name || null, max_devices || 3, grace_period_days || 7, expires_at || null, notes || null]);
+    const result = await pool.query(`INSERT INTO licenses (license_key, user_id, company_id, company_name, app_id, max_devices, grace_period_days, expires_at, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`, [licenseKey, user_id || null, company_id || null, company_name || null, app_id || 'timber-inventory', max_devices || 3, grace_period_days || 7, expires_at || null, notes || null]);
     res.json({ success: true, license: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create license' });
@@ -432,9 +433,9 @@ app.post('/api/admin/licenses', authenticateToken, async (req, res) => {
 app.put('/api/admin/licenses/:id', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   const { id } = req.params;
-  const { user_id, company_id, company_name, max_devices, grace_period_days, expires_at, is_active, notes } = req.body;
+  const { user_id, company_id, company_name, app_id, max_devices, grace_period_days, expires_at, is_active, notes } = req.body;
   try {
-    const result = await pool.query(`UPDATE licenses SET user_id = $1, company_id = $2, company_name = $3, max_devices = $4, grace_period_days = $5, expires_at = $6, is_active = $7, notes = $8 WHERE id = $9 RETURNING *`, [user_id || null, company_id || null, company_name || null, max_devices, grace_period_days || 7, expires_at || null, is_active, notes || null, id]);
+    const result = await pool.query(`UPDATE licenses SET user_id = $1, company_id = $2, company_name = $3, app_id = $4, max_devices = $5, grace_period_days = $6, expires_at = $7, is_active = $8, notes = $9 WHERE id = $10 RETURNING *`, [user_id || null, company_id || null, company_name || null, app_id || 'timber-inventory', max_devices, grace_period_days || 7, expires_at || null, is_active, notes || null, id]);
     res.json({ success: true, license: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update license' });
@@ -472,40 +473,50 @@ app.delete('/api/admin/licenses/:licenseId/devices/:deviceId', authenticateToken
 });
 
 app.post('/api/licenses/activate', async (req, res) => {
-  const { license_key, device_id, device_name, device_model } = req.body;
+  const { license_key, device_id, device_name, device_model, app_id } = req.body;
   if (!license_key || !device_id) return res.status(400).json({ error: 'License key and device ID required' });
   try {
     const licenseResult = await pool.query('SELECT * FROM licenses WHERE license_key = $1', [license_key]);
     if (licenseResult.rows.length === 0) return res.status(404).json({ error: 'Invalid license key' });
     const license = licenseResult.rows[0];
+    
+    if (app_id && license.app_id && license.app_id !== '*' && license.app_id !== app_id) {
+      return res.status(403).json({ error: 'License not valid for this application', valid_for: license.app_id, requested_for: app_id });
+    }
+    
     if (!license.is_active) return res.status(403).json({ error: 'License is inactive' });
     if (license.expires_at && new Date(license.expires_at) < new Date()) return res.status(403).json({ error: 'License has expired' });
     const existingDevice = await pool.query('SELECT * FROM license_devices WHERE license_id = $1 AND device_id = $2', [license.id, device_id]);
     if (existingDevice.rows.length > 0) {
       await pool.query('UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1', [existingDevice.rows[0].id]);
-      return res.json({ success: true, message: 'Device already activated', license: {license_key: license.license_key, company_name: license.company_name, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: existingDevice.rows[0]});
+      return res.json({ success: true, message: 'Device already activated', license: {license_key: license.license_key, company_name: license.company_name, app_id: license.app_id, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: existingDevice.rows[0]});
     }
     const deviceCount = await pool.query('SELECT COUNT(*) FROM license_devices WHERE license_id = $1', [license.id]);
     if (parseInt(deviceCount.rows[0].count) >= license.max_devices) return res.status(403).json({ error: 'Device limit reached', max_devices: license.max_devices });
     const deviceResult = await pool.query(`INSERT INTO license_devices (license_id, device_id, device_name, device_model) VALUES ($1, $2, $3, $4) RETURNING *`, [license.id, device_id, device_name || 'Unknown', device_model || 'Unknown']);
-    res.json({ success: true, message: 'Device activated successfully', license: {license_key: license.license_key, company_name: license.company_name, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: deviceResult.rows[0]});
+    res.json({ success: true, message: 'Device activated successfully', license: {license_key: license.license_key, company_name: license.company_name, app_id: license.app_id, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: deviceResult.rows[0]});
   } catch (err) {
     res.status(500).json({ error: 'Activation failed' });
   }
 });
 
 app.post('/api/licenses/verify', async (req, res) => {
-  const { license_key, device_id } = req.body;
+  const { license_key, device_id, app_id } = req.body;
   if (!license_key || !device_id) return res.status(400).json({ error: 'License key and device ID required' });
   try {
     const result = await pool.query(`SELECT l.*, ld.id as device_record_id, ld.last_seen FROM licenses l LEFT JOIN license_devices ld ON l.id = ld.license_id AND ld.device_id = $2 WHERE l.license_key = $1`, [license_key, device_id]);
     if (result.rows.length === 0) return res.status(404).json({ valid: false, error: 'Invalid license key', should_retry: false });
     const license = result.rows[0];
+    
+    if (app_id && license.app_id && license.app_id !== '*' && license.app_id !== app_id) {
+      return res.json({ valid: false, error: 'License not valid for this application', valid_for: license.app_id, should_retry: false });
+    }
+    
     if (!license.is_active) return res.json({ valid: false, error: 'License is inactive', should_retry: false });
     if (license.expires_at && new Date(license.expires_at) < new Date()) return res.json({ valid: false, error: 'License has expired', expired_at: license.expires_at, should_retry: false });
     if (!license.device_record_id) return res.json({ valid: false, error: 'Device not activated', should_retry: false });
     await pool.query('UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1', [license.device_record_id]);
-    res.json({ valid: true, verified_at: new Date().toISOString(), license: {company_name: license.company_name, expires_at: license.expires_at, max_devices: license.max_devices, grace_period_days: license.grace_period_days, last_verified: new Date().toISOString()}});
+    res.json({ valid: true, verified_at: new Date().toISOString(), license: {company_name: license.company_name, app_id: license.app_id, expires_at: license.expires_at, max_devices: license.max_devices, grace_period_days: license.grace_period_days, last_verified: new Date().toISOString()}});
   } catch (err) {
     res.status(500).json({ valid: false, error: 'Verification failed', should_retry: true });
   }
@@ -513,7 +524,7 @@ app.post('/api/licenses/verify', async (req, res) => {
 
 app.get('/api/licenses/info/:licenseKey', async (req, res) => {
   try {
-    const result = await pool.query('SELECT license_key, company_name, max_devices, grace_period_days, expires_at, is_active FROM licenses WHERE license_key = $1', [req.params.licenseKey]);
+    const result = await pool.query('SELECT license_key, company_name, app_id, max_devices, grace_period_days, expires_at, is_active FROM licenses WHERE license_key = $1', [req.params.licenseKey]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'License not found' });
     res.json({ license: result.rows[0] });
   } catch (err) {
@@ -538,6 +549,7 @@ app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🏢 Companies Support: ENABLED`);
   console.log(`📧 Email Support: ENABLED`);
-  console.log(`📱 Grace Period Support: ENABLED`);
+  console.log(`📱 Multi-App Support: ENABLED`);
+  console.log(`⏱️ Grace Period Support: ENABLED`);
   await initDatabase();
 });

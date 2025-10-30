@@ -1,9 +1,9 @@
-a<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Timber API</title>
+    <title>Admin Panel - Timber API Multi-App</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
@@ -45,6 +45,7 @@ a<!DOCTYPE html>
         .badge-active { background: #28a745; color: white; }
         .badge-inactive { background: #dc3545; color: white; }
         .badge-expired { background: #ffc107; color: #333; }
+        .badge-app { background: #17a2b8; color: white; font-family: monospace; font-size: 11px; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow-y: auto; }
         .modal-content { background: white; margin: 50px auto; padding: 30px; border-radius: 15px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -71,12 +72,14 @@ a<!DOCTYPE html>
         .company-name { font-size: 20px; font-weight: bold; color: #333; }
         .company-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 14px; color: #666; }
         .info-label { font-weight: 600; color: #333; }
+        .app-id-hint { font-size: 12px; color: #666; margin-top: -10px; margin-bottom: 15px; padding: 8px; background: #f8f9ff; border-radius: 4px; border-left: 3px solid #667eea; }
+        #licenseAppIdCustom { display: none; }
     </style>
 </head>
 <body>
     <div class="login-container" id="loginContainer">
         <h1>🌲 Admin Panel</h1>
-        <p>Timber Inventory API</p>
+        <p>Timber API Multi-App System</p>
         <form id="loginForm">
             <input type="text" id="loginUsername" placeholder="Username" required value="admin">
             <div class="password-toggle">
@@ -86,14 +89,14 @@ a<!DOCTYPE html>
             <button type="submit" class="btn" style="width: 100%;">Login</button>
         </form>
         <div class="message" id="loginMessage"></div>
-        <p style="margin-top: 20px; font-size: 12px; color: #999;">Contactați administratorul pentru acces</p>
+        <p style="margin-top: 20px; font-size: 12px; color: #999;">v7.0 - Multi-App Support</p>
     </div>
 
     <div class="main-app" id="mainApp">
         <div class="header">
             <div>
                 <h1>🌲 Admin Panel</h1>
-                <p style="color: #666; font-size: 14px;">Gestionare completă sistem</p>
+                <p style="color: #666; font-size: 14px;">Multi-App License Management System</p>
             </div>
             <div class="user-info">
                 <span class="user-badge">👤 <span id="currentUser">Administrator</span></span>
@@ -127,8 +130,8 @@ a<!DOCTYPE html>
                     <p>Licențe Active</p>
                 </div>
             </div>
-            <h2 style="margin-bottom: 20px;">Bine ai venit în Admin Panel!</h2>
-            <p>Folosește tab-urile de sus pentru a gestiona companiile, userii și licențele.</p>
+            <h2 style="margin-bottom: 20px;">Multi-App License System</h2>
+            <p>Sistemul suportă licențe pentru aplicații multiple. Fiecare licență poate fi specifică unei aplicații sau universală (*).</p>
         </div>
 
         <div class="container" id="companiesTab">
@@ -186,6 +189,7 @@ a<!DOCTYPE html>
                 <thead>
                     <tr>
                         <th>License Key</th>
+                        <th>App ID</th>
                         <th>Companie</th>
                         <th>User</th>
                         <th>Devices</th>
@@ -199,6 +203,7 @@ a<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- MODALS -->
     <div id="companyModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -209,23 +214,15 @@ a<!DOCTYPE html>
                 <input type="hidden" id="companyId">
                 <label>Nume Companie *</label>
                 <input type="text" id="companyName" required placeholder="Ex: Forestier SRL">
-                
                 <label>CUI</label>
                 <input type="text" id="companyCui" placeholder="Ex: RO12345678">
-                
                 <label>Adresă</label>
                 <textarea id="companyAddress" placeholder="Adresa completă"></textarea>
-                
                 <label>Telefon</label>
                 <input type="text" id="companyPhone" placeholder="Ex: 0740123456">
-                
                 <label>Email</label>
                 <input type="email" id="companyEmail" placeholder="office@companie.ro">
-                
-                <label>
-                    <input type="checkbox" id="companyActive" checked> Companie Activă
-                </label>
-                
+                <label><input type="checkbox" id="companyActive" checked> Companie Activă</label>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn">Salvează</button>
                     <button type="button" class="btn btn-secondary" onclick="closeCompanyModal()">Anulează</button>
@@ -254,38 +251,26 @@ a<!DOCTYPE html>
                 <input type="hidden" id="userId">
                 <label>Username *</label>
                 <input type="text" id="username" required>
-                
                 <label>Nume Complet</label>
                 <input type="text" id="fullName">
-                
                 <label>Email</label>
                 <input type="email" id="email" placeholder="exemplu@domeniu.ro">
-                
                 <label>Companie</label>
-                <select id="userCompanyId">
-                    <option value="">Nicio companie</option>
-                </select>
-                
+                <select id="userCompanyId"><option value="">Nicio companie</option></select>
                 <label>Parolă (opțional la editare)</label>
                 <div class="password-toggle">
                     <input type="password" id="password">
                     <button type="button" onclick="togglePassword('password', this)">👁️</button>
                 </div>
-                
                 <label>Rol</label>
                 <select id="role">
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
                 </select>
-                
-                <label>
-                    <input type="checkbox" id="isActive" checked> Activ
-                </label>
-                
+                <label><input type="checkbox" id="isActive" checked> Activ</label>
                 <h3 style="margin: 20px 0 10px 0;">📂 Permisiuni Categorii</h3>
                 <div id="categoriesContainer"></div>
                 <button type="button" class="btn btn-secondary" onclick="addCategoryPermission()">➕ Adaugă Categorie</button>
-                
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn">Salvează</button>
                     <button type="button" class="btn btn-secondary" onclick="closeUserModal()">Anulează</button>
@@ -302,41 +287,43 @@ a<!DOCTYPE html>
             </div>
             <form id="licenseForm">
                 <input type="hidden" id="licenseId">
-                
                 <div id="licenseKeyDisplay" style="display: none;">
                     <label>License Key Generat</label>
                     <div class="license-key" id="generatedLicenseKey"></div>
                 </div>
                 
-                <label>Companie</label>
-                <select id="licenseCompanyId">
-                    <option value="">Nicio companie</option>
+                <label>Aplicație (APP ID) *</label>
+                <select id="licenseAppIdSelect" onchange="handleAppIdChange()">
+                    <option value="">Selectează aplicație...</option>
+                    <option value="*">🌐 Toate aplicațiile (*)</option>
+                    <option value="timber-inventory">📦 Timber Inventory</option>
+                    <option value="forest-manager">🌲 Forest Manager</option>
+                    <option value="wood-calculator">🔢 Wood Calculator</option>
+                    <option value="CUSTOM">✏️ Altă aplicație (custom)</option>
                 </select>
+                <input type="text" id="licenseAppIdCustom" placeholder="Introdu app_id custom (ex: timber-pro)">
+                <div class="app-id-hint">
+                    💡 <strong>Sfaturi:</strong><br>
+                    • Selectează "*" pentru licență universală (merge pe orice app)<br>
+                    • Selectează app specific pentru a restricționa licența<br>
+                    • "Custom" permite app_id personalizat (ex: timber-*,my-app-2025)
+                </div>
                 
+                <label>Companie</label>
+                <select id="licenseCompanyId"><option value="">Nicio companie</option></select>
                 <label>Nume Companie (text liber - opțional)</label>
                 <input type="text" id="licenseCompanyName" placeholder="Ex: Forestier SRL">
-                
                 <label>User Alocat (opțional)</label>
-                <select id="licenseUserId">
-                    <option value="">Niciun user</option>
-                </select>
-                
+                <select id="licenseUserId"><option value="">Niciun user</option></select>
                 <label>Dispozitive Maxime</label>
                 <input type="number" id="maxDevices" value="3" min="1" max="50">
-                
                 <label>Grace Period (zile offline)</label>
                 <input type="number" id="gracePeriodDays" value="7" min="1" max="365">
-                
                 <label>Data Expirare (opțional)</label>
                 <input type="date" id="expiresAt">
-                
-                <label>
-                    <input type="checkbox" id="licenseActive" checked> Licență Activă
-                </label>
-                
+                <label><input type="checkbox" id="licenseActive" checked> Licență Activă</label>
                 <label>Note</label>
                 <textarea id="licenseNotes" placeholder="Note despre licență..."></textarea>
-                
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button type="submit" class="btn">Salvează</button>
                     <button type="button" class="btn btn-secondary" onclick="closeLicenseModal()">Anulează</button>
@@ -364,7 +351,20 @@ let token = null;
         let editingUserId = null;
         let editingLicenseId = null;
         let editingCompanyId = null;
-        let currentLicenseForDevices = null;
+
+        function handleAppIdChange() {
+            const select = document.getElementById('licenseAppIdSelect');
+            const customInput = document.getElementById('licenseAppIdCustom');
+            
+            if (select.value === 'CUSTOM') {
+                customInput.style.display = 'block';
+                customInput.required = true;
+            } else {
+                customInput.style.display = 'none';
+                customInput.required = false;
+                customInput.value = '';
+            }
+        }
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -591,7 +591,7 @@ let token = null;
         });
 
         async function deleteCompany(companyId, companyName) {
-            if (!confirm(`Sigur vrei să ștergi compania "${companyName}"? Userii și licențele vor rămâne dar vor fi disociate.`)) return;
+            if (!confirm(`Sigur vrei să ștergi compania "${companyName}"?`)) return;
 
             try {
                 const response = await fetch(`/api/admin/companies/${companyId}`, {
@@ -668,6 +668,7 @@ let token = null;
                             <thead>
                                 <tr>
                                     <th>License Key</th>
+                                    <th>App ID</th>
                                     <th>Devices</th>
                                     <th>Status</th>
                                     <th>Expirare</th>
@@ -681,6 +682,7 @@ let token = null;
                                     return `
                                         <tr>
                                             <td><code style="font-size: 12px;">${license.license_key}</code></td>
+                                            <td><span class="badge badge-app">${license.app_id || 'timber-inventory'}</span></td>
                                             <td>${license.active_devices}/${license.max_devices}</td>
                                             <td><span class="badge badge-${statusBadge}">${statusText}</span></td>
                                             <td>${license.expires_at ? new Date(license.expires_at).toLocaleDateString('ro-RO') : 'Nelimitat'}</td>
@@ -936,6 +938,7 @@ let token = null;
                     return `
                         <tr>
                             <td><code style="background: #f8f9ff; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${license.license_key}</code></td>
+                            <td><span class="badge badge-app">${license.app_id || 'timber-inventory'}</span></td>
                             <td>${license.company_name || '-'}</td>
                             <td>${license.full_name || license.username || '-'}</td>
                             <td>
@@ -968,6 +971,8 @@ let token = null;
             document.getElementById('maxDevices').value = 3;
             document.getElementById('gracePeriodDays').value = 7;
             document.getElementById('licenseKeyDisplay').style.display = 'none';
+            document.getElementById('licenseAppIdSelect').value = '';
+            document.getElementById('licenseAppIdCustom').style.display = 'none';
             
             const companySelect = document.getElementById('licenseCompanyId');
             companySelect.innerHTML = '<option value="">Nicio companie</option>' + 
@@ -992,6 +997,20 @@ let token = null;
             document.getElementById('expiresAt').value = license.expires_at ? license.expires_at.split('T')[0] : '';
             document.getElementById('licenseActive').checked = license.is_active;
             document.getElementById('licenseNotes').value = license.notes || '';
+            
+            // Set app_id
+            const appId = license.app_id || 'timber-inventory';
+            const select = document.getElementById('licenseAppIdSelect');
+            const customInput = document.getElementById('licenseAppIdCustom');
+            
+            if (['*', 'timber-inventory', 'forest-manager', 'wood-calculator'].includes(appId)) {
+                select.value = appId;
+                customInput.style.display = 'none';
+            } else {
+                select.value = 'CUSTOM';
+                customInput.value = appId;
+                customInput.style.display = 'block';
+            }
             
             document.getElementById('licenseKeyDisplay').style.display = 'block';
             document.getElementById('generatedLicenseKey').textContent = license.license_key;
@@ -1025,11 +1044,22 @@ let token = null;
             const expiresAt = document.getElementById('expiresAt').value;
             const isActive = document.getElementById('licenseActive').checked;
             const notes = document.getElementById('licenseNotes').value;
+            
+            // Get app_id
+            const appIdSelect = document.getElementById('licenseAppIdSelect').value;
+            const appIdCustom = document.getElementById('licenseAppIdCustom').value;
+            let appId = appIdSelect === 'CUSTOM' ? appIdCustom : appIdSelect;
+            
+            if (!appId) {
+                showLicensesMessage('Selectează o aplicație!', 'error');
+                return;
+            }
 
             const licenseData = {
                 company_id: companyId || null,
                 company_name: companyName,
                 user_id: userId || null,
+                app_id: appId,
                 max_devices: maxDevices,
                 grace_period_days: gracePeriodDays,
                 expires_at: expiresAt || null,
