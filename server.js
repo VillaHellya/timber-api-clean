@@ -1,3 +1,138 @@
+const express = require('express');
+const multer = require('multer');
+const { Pool } = require('pg');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+// PostgreSQL connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// Configure multer
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed!'), false);
+    }
+  }
+});
+
+// Initialize database
+async function initDatabase() {
+  try {
+    // CSV tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS csv_files (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) NOT NULL,
+        category VARCHAR(50) DEFAULT 'general',
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS csv_data (
+        id SERIAL PRIMARY KEY,
+        file_id INTEGER REFERENCES csv_files(id) ON DELETE CASCADE,
+        row_data JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Auth tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        full_name VARCHAR(100),
+        role VARCHAR(20) DEFAULT 'user',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        category VARCHAR(50) NOT NULL,
+        can_read BOOLEAN DEFAULT true,
+        can_write BOOLEAN DEFAULT false,
+        can_delete BOOLEAN DEFAULT false,
+        UNIQUE(user_id, category)
+      )
+    `);
+
+    // License tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS licenses (
+        id SERIAL PRIMARY KEY,
+        license_key VARCHAR(50) UNIQUE NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        company_name VARCHAR(100),
+        max_devices INTEGER DEFAULT 3,
+        grace_period_days INTEGER DEFAULT 7,
+        expires_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS license_devices (
+        id SERIAL PRIMARY KEY,
+        license_id INTEGER REFERENCES licenses(id) ON DELETE CASCADE,
+        device_id VARCHAR(255) NOT NULL,
+        device_name VARCHAR(100),
+        device_model VARCHAR(100),
+        activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(license_id, device_id)
+      )
+    `);
+
+    // Add grace_period_days column if it doesn't exist (for existing databases)
+    try {
+      await pool.query(`
+        ALTER TABLE licenses 
+        ADD COLUMN IF NOT EXISTS grace_period_days INTEGER DEFAULT 7
+      `);
+    } catch (err) {
+      // Column might already exist
+    }
+
+    console.log('✅ License tables initialized with grace period support');
+
+    // Create default admin if not exists
+    try {
+      const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
+      if (adminCheck.rows.length === 0) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await pool.query(
+          'INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4)',
+          ['admin', hashedPassword, 'Administrator', 'admin']
+        );
+        console.log('✅ Default admin created (username: admin, password: admin123)
 console.log('✅ Default admin created (username: admin, password: admin123)');
       } else {
         console.log('✅ Default admin already exists!');
