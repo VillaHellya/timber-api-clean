@@ -274,16 +274,12 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/categories', authenticateToken, async (req, res) => {
+// PUBLIC endpoint - no authentication required (offline-first app)
+app.get('/api/categories', async (req, res) => {
   try {
-    let query; let params = [];
-    if (req.user.role === 'admin') {
-      query = 'SELECT DISTINCT category FROM csv_files ORDER BY category';
-    } else {
-      query = 'SELECT DISTINCT category FROM user_categories WHERE user_id = $1 ORDER BY category';
-      params = [req.user.id];
-    }
-    const result = await pool.query(query, params);
+    // Return ALL categories (no filtering for offline-first app)
+    const query = 'SELECT DISTINCT category FROM csv_files ORDER BY category';
+    const result = await pool.query(query);
     const categories = result.rows.map(row => row.category);
     res.json({ categories: categories, count: categories.length });
   } catch (err) {
@@ -323,21 +319,29 @@ app.post('/api/upload', authenticateToken, checkCategoryAccess('can_write'), upl
   }
 });
 
-app.get('/api/datasets', authenticateToken, async (req, res) => {
+// PUBLIC endpoint - no authentication required (offline-first app)
+app.get('/api/datasets', async (req, res) => {
   try {
     const category = req.query.category;
-    let query = `SELECT f.id, f.filename, f.category, f.uploaded_at, COUNT(d.id) as record_count FROM csv_files f LEFT JOIN csv_data d ON f.id = d.file_id`;
+
+    // Return ALL datasets (no user-based filtering for offline-first app)
+    let query = `
+      SELECT
+        f.id,
+        f.filename,
+        f.category,
+        f.uploaded_at,
+        COUNT(d.id) as record_count
+      FROM csv_files f
+      LEFT JOIN csv_data d ON f.id = d.file_id
+    `;
+
     const params = [];
-    const whereClauses = [];
-    if (req.user.role !== 'admin') {
-      whereClauses.push(`f.category IN (SELECT category FROM user_categories WHERE user_id = $${params.length + 1})`);
-      params.push(req.user.id);
-    }
     if (category) {
-      whereClauses.push(`f.category = $${params.length + 1}`);
+      query += ' WHERE f.category = $1';
       params.push(category);
     }
-    if (whereClauses.length > 0) query += ' WHERE ' + whereClauses.join(' AND ');
+
     query += ' GROUP BY f.id ORDER BY f.uploaded_at DESC';
     const result = await pool.query(query, params);
     res.json({ datasets: result.rows, total: result.rows.length });
