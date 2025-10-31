@@ -491,7 +491,7 @@ app.post('/api/licenses/activate', async (req, res) => {
   const { license_key, device_id, device_name, device_model, app_id } = req.body;
   if (!license_key || !device_id) return res.status(400).json({ error: 'License key and device ID required' });
   try {
-    const licenseResult = await pool.query('SELECT * FROM licenses WHERE license_key = $1', [license_key]);
+    const licenseResult = await pool.query('SELECT l.*, u.username, u.full_name, u.email FROM licenses l LEFT JOIN users u ON l.user_id = u.id WHERE l.license_key = $1', [license_key]);
     if (licenseResult.rows.length === 0) return res.status(404).json({ error: 'Invalid license key' });
     const license = licenseResult.rows[0];
     
@@ -504,12 +504,12 @@ app.post('/api/licenses/activate', async (req, res) => {
     const existingDevice = await pool.query('SELECT * FROM license_devices WHERE license_id = $1 AND device_id = $2', [license.id, device_id]);
     if (existingDevice.rows.length > 0) {
       await pool.query('UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1', [existingDevice.rows[0].id]);
-      return res.json({ success: true, message: 'Device already activated', license: {license_key: license.license_key, company_name: license.company_name, app_id: license.app_id, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: existingDevice.rows[0]});
+      return res.json({ success: true, message: 'Device already activated', license: {license_key: license.license_key, company_name: license.company_name, username: license.username, full_name: license.full_name, email: license.email, app_id: license.app_id, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: existingDevice.rows[0]});
     }
     const deviceCount = await pool.query('SELECT COUNT(*) FROM license_devices WHERE license_id = $1', [license.id]);
     if (parseInt(deviceCount.rows[0].count) >= license.max_devices) return res.status(403).json({ error: 'Device limit reached', max_devices: license.max_devices });
     const deviceResult = await pool.query(`INSERT INTO license_devices (license_id, device_id, device_name, device_model) VALUES ($1, $2, $3, $4) RETURNING *`, [license.id, device_id, device_name || 'Unknown', device_model || 'Unknown']);
-    res.json({ success: true, message: 'Device activated successfully', license: {license_key: license.license_key, company_name: license.company_name, app_id: license.app_id, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: deviceResult.rows[0]});
+    res.json({ success: true, message: 'Device activated successfully', license: {license_key: license.license_key, company_name: license.company_name, username: license.username, full_name: license.full_name, email: license.email, app_id: license.app_id, max_devices: license.max_devices, grace_period_days: license.grace_period_days, expires_at: license.expires_at}, device: deviceResult.rows[0]});
   } catch (err) {
     res.status(500).json({ error: 'Activation failed' });
   }
@@ -519,7 +519,7 @@ app.post('/api/licenses/verify', async (req, res) => {
   const { license_key, device_id, app_id } = req.body;
   if (!license_key || !device_id) return res.status(400).json({ error: 'License key and device ID required' });
   try {
-    const result = await pool.query(`SELECT l.*, ld.id as device_record_id, ld.last_seen FROM licenses l LEFT JOIN license_devices ld ON l.id = ld.license_id AND ld.device_id = $2 WHERE l.license_key = $1`, [license_key, device_id]);
+    const result = await pool.query(`SELECT l.*, u.username, u.full_name, u.email, ld.id as device_record_id, ld.last_seen FROM licenses l LEFT JOIN users u ON l.user_id = u.id LEFT JOIN license_devices ld ON l.id = ld.license_id AND ld.device_id = $2 WHERE l.license_key = $1`, [license_key, device_id]);
     if (result.rows.length === 0) return res.status(404).json({ valid: false, error: 'Invalid license key', should_retry: false });
     const license = result.rows[0];
     
@@ -531,7 +531,7 @@ app.post('/api/licenses/verify', async (req, res) => {
     if (license.expires_at && new Date(license.expires_at) < new Date()) return res.json({ valid: false, error: 'License has expired', expired_at: license.expires_at, should_retry: false });
     if (!license.device_record_id) return res.json({ valid: false, error: 'Device not activated', should_retry: false });
     await pool.query('UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE id = $1', [license.device_record_id]);
-    res.json({ valid: true, verified_at: new Date().toISOString(), license: {company_name: license.company_name, app_id: license.app_id, expires_at: license.expires_at, max_devices: license.max_devices, grace_period_days: license.grace_period_days, last_verified: new Date().toISOString()}});
+    res.json({ valid: true, verified_at: new Date().toISOString(), license: {company_name: license.company_name, username: license.username, full_name: license.full_name, email: license.email, app_id: license.app_id, expires_at: license.expires_at, max_devices: license.max_devices, grace_period_days: license.grace_period_days, last_verified: new Date().toISOString()}});
   } catch (err) {
     res.status(500).json({ valid: false, error: 'Verification failed', should_retry: true });
   }
