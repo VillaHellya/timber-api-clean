@@ -560,6 +560,39 @@ app.post('/api/licenses/deactivate', async (req, res) => {
   }
 });
 
+// Certificate Pinning - Public endpoint (no auth required)
+app.get('/api/certificates/fingerprints', async (req, res) => {
+  try {
+    // Hardcoded certificate fingerprints (Railway SSL cert)
+    // Update this array when Railway renews the certificate
+    const certificates = [
+      {
+        fingerprint: 'sha256/TuStss/55HxEtKcvwsE0WEwiXKBP+sKO3gJ3Y2f2HPE=',
+        description: 'Railway production certificate 2025',
+        validUntil: '2025-04-30T23:59:59Z' // Estimate - Railway cert expires ~90 days
+      }
+      // Add new/backup certificates here during renewal
+      // Example:
+      // {
+      //   fingerprint: 'sha256/NEW_FINGERPRINT_HERE=',
+      //   description: 'Railway renewed certificate',
+      //   validUntil: '2025-07-30T23:59:59Z'
+      // }
+    ];
+
+    res.json({
+      success: true,
+      certificates: certificates
+    });
+  } catch (err) {
+    console.error('Error fetching certificate fingerprints:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
 // ============================================
 // SYNC ENDPOINTS FOR MOBILE APP
 // ============================================
