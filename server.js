@@ -50,6 +50,59 @@ async function initDatabase() {
 
     console.log('✅ Database tables initialized with app_id support');
 
+    // Tabele pentru inventar din teren (field inventory)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS field_inventory_sessions (
+        id SERIAL PRIMARY KEY,
+        device_id VARCHAR(255) NOT NULL,
+        apv_number VARCHAR(100) NOT NULL,
+        ua_number VARCHAR(100),
+        inventory_date DATE,
+        total_trees INTEGER DEFAULT 0,
+        total_volume NUMERIC(10,2) DEFAULT 0,
+        sync_status VARCHAR(20) DEFAULT 'synced',
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        metadata JSONB
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS field_trees (
+        id SERIAL PRIMARY KEY,
+        session_id INTEGER REFERENCES field_inventory_sessions(id) ON DELETE CASCADE,
+        device_id VARCHAR(255) NOT NULL,
+        tree_number INTEGER,
+        species VARCHAR(100),
+        diameter NUMERIC(5,1),
+        height NUMERIC(5,2),
+        volume NUMERIC(8,4),
+        latitude NUMERIC(10,7),
+        longitude NUMERIC(10,7),
+        recorded_at TIMESTAMP,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS field_sync_log (
+        id SERIAL PRIMARY KEY,
+        device_id VARCHAR(255) NOT NULL,
+        sync_type VARCHAR(50),
+        trees_count INTEGER,
+        sessions_count INTEGER,
+        status VARCHAR(20),
+        error_message TEXT,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Index-uri pentru performanță
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_field_sessions_device ON field_inventory_sessions(device_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_field_trees_session ON field_trees(session_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_field_trees_device ON field_trees(device_id)`);
+
+    console.log('✅ Field inventory tables initialized');
+
     try {
       const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
       if (adminCheck.rows.length === 0) {
@@ -95,7 +148,7 @@ const checkCategoryAccess = (permission) => {
 };
 
 app.get('/', (req, res) => {
-  res.json({message: 'Timber API with Multi-App Support', version: '7.0.0', status: 'running', features: ['companies', 'users', 'licenses', 'multi_app', 'offline_mode']});
+  res.json({message: 'Timber API with Multi-App Support', version: '7.1.0', status: 'running', features: ['companies', 'users', 'licenses', 'multi_app', 'offline_mode', 'field_inventory_sync']});
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -628,7 +681,7 @@ app.get('/api/sync', async (req, res) => {
       categories: categories,
       datasets: datasetsResult.rows,
       synced_at: new Date().toISOString(),
-      server_version: '7.0.0'
+      server_version: '7.1.0'
     };
 
     console.log(`✅ Sync successful: ${categories.length} categories, ${datasetsResult.rows.length} datasets`);
@@ -698,6 +751,167 @@ app.get('/api/datasets/:id/data', async (req, res) => {
 });
 
 // REMOVED DUPLICATE - /api/categories already exists at line 278 (PUBLIC endpoint)
+
+// ============================================================================
+// FIELD INVENTORY ENDPOINTS - Sincronizare date din teren
+// ============================================================================
+
+// POST /api/field-inventory/sync
+// Sincronizare inventar complet din teren (PUBLIC - fără autentificare JWT)
+app.post('/api/field-inventory/sync', async (req, res) => {
+  const { device_id, sessions, trees } = req.body;
+
+  // Validare input
+  if (!device_id) {
+    return res.status(400).json({
+      success: false,
+      error: 'Device ID is required'
+    });
+  }
+
+  if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'At least one inventory session is required'
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const syncedSessions = [];
+    const syncedTrees = [];
+
+    // Inserare sesiuni de inventariere
+    for (const session of sessions) {
+      const sessionResult = await client.query(
+        `INSERT INTO field_inventory_sessions
+         (device_id, apv_number, ua_number, inventory_date, total_trees, total_volume, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+        [
+          device_id,
+          session.apvNumber,
+          session.uaNumber || null,
+          session.inventoryDate || null,
+          session.totalTrees || 0,
+          session.totalVolume || 0,
+          session.metadata ? JSON.stringify(session.metadata) : null
+        ]
+      );
+
+      const sessionId = sessionResult.rows[0].id;
+      syncedSessions.push(sessionId);
+
+      // Inserare arbori pentru această sesiune
+      if (trees && Array.isArray(trees)) {
+        const sessionTrees = trees.filter(t => t.apvNumber === session.apvNumber);
+
+        for (const tree of sessionTrees) {
+          await client.query(
+            `INSERT INTO field_trees
+             (session_id, device_id, tree_number, species, diameter, height, volume, latitude, longitude, recorded_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              sessionId,
+              device_id,
+              tree.treeNumber || null,
+              tree.species || null,
+              tree.diameter || null,
+              tree.height || null,
+              tree.volume || null,
+              tree.latitude || null,
+              tree.longitude || null,
+              tree.recordedAt ? new Date(tree.recordedAt) : new Date()
+            ]
+          );
+          syncedTrees.push(tree);
+        }
+      }
+    }
+
+    // Log sincronizare
+    await client.query(
+      `INSERT INTO field_sync_log
+       (device_id, sync_type, trees_count, sessions_count, status)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [device_id, 'full', syncedTrees.length, syncedSessions.length, 'success']
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'Inventory data synced successfully',
+      synced: {
+        sessions: syncedSessions.length,
+        trees: syncedTrees.length,
+        device_id: device_id,
+        synced_at: new Date().toISOString()
+      }
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Field inventory sync error:', err);
+
+    // Log eroare
+    try {
+      await pool.query(
+        `INSERT INTO field_sync_log
+         (device_id, sync_type, status, error_message)
+         VALUES ($1, $2, $3, $4)`,
+        [device_id, 'full', 'error', err.message]
+      );
+    } catch (logErr) {
+      console.error('Failed to log sync error:', logErr);
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Sync failed',
+      details: err.message
+    });
+
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/field-inventory/history/:deviceId
+// Obține istoricul sincronizărilor pentru un dispozitiv
+app.get('/api/field-inventory/history/:deviceId', async (req, res) => {
+  const { deviceId } = req.params;
+
+  try {
+    const sessions = await pool.query(
+      `SELECT s.*, COUNT(t.id) as actual_trees_count
+       FROM field_inventory_sessions s
+       LEFT JOIN field_trees t ON s.id = t.session_id
+       WHERE s.device_id = $1
+       GROUP BY s.id
+       ORDER BY s.synced_at DESC
+       LIMIT 50`,
+      [deviceId]
+    );
+
+    res.json({
+      success: true,
+      device_id: deviceId,
+      sessions: sessions.rows,
+      total: sessions.rows.length
+    });
+
+  } catch (err) {
+    console.error('History fetch error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch history'
+    });
+  }
+});
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
