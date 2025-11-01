@@ -270,6 +270,7 @@
                     <tr>
                         <th>Data</th>
                         <th>Dispozitiv</th>
+                        <th>Utilizator</th>
                         <th>APV</th>
                         <th>UA</th>
                         <th>Arbori</th>
@@ -289,6 +290,7 @@
         let allTrees = [];
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
+        let userRole = null;
 
         // Verificare autentificare la încărcare pagină
         window.addEventListener('DOMContentLoaded', async () => {
@@ -311,6 +313,7 @@
                 }
 
                 currentUser = await response.json();
+                userRole = currentUser.role;
                 updateUserInfo();
                 loadData();
             } catch (error) {
@@ -383,6 +386,7 @@
                 const data = await response.json();
                 authToken = data.token;
                 currentUser = data.user;
+                userRole = currentUser.role;
                 localStorage.setItem('authToken', authToken);
 
                 // Reîncarcă pagina pentru a afișa interfața principală
@@ -502,7 +506,7 @@
             tbody.innerHTML = '';
 
             if (sessions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;">Nu există date sincronizate</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;">Nu există date sincronizate</td></tr>';
                 return;
             }
 
@@ -518,6 +522,7 @@
                     <td>
                         <span class="device-badge">${session.device_id.substring(0, 12)}...</span>
                     </td>
+                    <td>${session.username || session.user_full_name || 'N/A'}</td>
                     <td><strong>${session.apv_number}</strong></td>
                     <td>${session.ua_number || '-'}</td>
                     <td>
@@ -525,9 +530,19 @@
                     </td>
                     <td><strong>${parseFloat(session.total_volume).toFixed(2)}</strong> mc</td>
                     <td>
-                        <button onclick="viewDetails(${session.id})" style="padding: 5px 12px; font-size: 12px;">
-                            👁️ Detalii
-                        </button>
+                        <div style="display: flex; gap: 5px;">
+                            <button onclick="viewDetails(${session.id})" style="padding: 5px 12px; font-size: 12px;">
+                                👁️ Detalii
+                            </button>
+                            ${userRole === 'admin' ? `
+                                <button onclick="editSession(${session.id})" style="padding: 5px 12px; font-size: 12px; background: #f59e0b;">
+                                    ✏️ Editează
+                                </button>
+                                <button onclick="deleteSession(${session.id}, '${session.apv_number}')" style="padding: 5px 12px; font-size: 12px; background: #ef4444;">
+                                    🗑️ Șterge
+                                </button>
+                            ` : ''}
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -551,6 +566,74 @@
 
         function filterByApv() {
             filterByDevice(); // Folosește aceeași logică
+        }
+
+        async function deleteSession(sessionId, apvNumber) {
+            if (!confirm(`Sigur vrei să ștergi sesiunea APV ${apvNumber}?\n\nAceastă acțiune este IREVERSIBILĂ și va șterge și toți arborii asociați!`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/field-inventory/session/${sessionId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Sesiune ștearsă cu succes!');
+                    await loadData();
+                } else {
+                    alert('Eroare: ' + data.error);
+                }
+            } catch (err) {
+                console.error('Delete error:', err);
+                alert('Eroare la ștergere: ' + err.message);
+            }
+        }
+
+        function editSession(sessionId) {
+            const session = allSessions.find(s => s.id === sessionId);
+            if (!session) return;
+
+            const newApv = prompt('APV:', session.apv_number);
+            if (newApv === null) return;
+
+            const newUa = prompt('UA:', session.ua_number || '');
+            if (newUa === null) return;
+
+            updateSessionData(sessionId, {
+                apv_number: newApv,
+                ua_number: newUa || null
+            });
+        }
+
+        async function updateSessionData(sessionId, updates) {
+            try {
+                const response = await fetch(`${API_BASE}/api/field-inventory/session/${sessionId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(updates)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Sesiune actualizată cu succes!');
+                    await loadData();
+                } else {
+                    alert('Eroare: ' + data.error);
+                }
+            } catch (err) {
+                console.error('Update error:', err);
+                alert('Eroare la actualizare: ' + err.message);
+            }
         }
 
         async function viewDetails(sessionId) {

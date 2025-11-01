@@ -1030,9 +1030,14 @@ app.get('/api/field-inventory/all-sessions', authenticateToken, async (req, res)
   try {
     // Admin vede tot, user-ii obișnuiți văd doar datele companiei lor
     let query = `
-      SELECT s.*, COUNT(t.id) as tree_records_count
+      SELECT
+        s.*,
+        COUNT(t.id) as tree_records_count,
+        u.username,
+        u.full_name as user_full_name
       FROM field_inventory_sessions s
       LEFT JOIN field_trees t ON s.id = t.session_id
+      LEFT JOIN users u ON s.user_id = u.id
     `;
 
     const params = [];
@@ -1056,7 +1061,7 @@ app.get('/api/field-inventory/all-sessions', authenticateToken, async (req, res)
       params.push(userInfo.rows[0].company_id);
     }
 
-    query += ' GROUP BY s.id ORDER BY s.synced_at DESC';
+    query += ' GROUP BY s.id, u.username, u.full_name ORDER BY s.synced_at DESC';
 
     const sessions = await pool.query(query, params);
 
@@ -1125,6 +1130,142 @@ app.get('/api/field-inventory/session/:id/trees', authenticateToken, async (req,
     res.status(500).json({
       success: false,
       error: 'Failed to fetch trees'
+    });
+  }
+});
+
+// DELETE /api/field-inventory/session/:id
+// Șterge o sesiune de inventar (doar admin)
+app.delete('/api/field-inventory/session/:id', authenticateToken, async (req, res) => {
+  try {
+    // Verificare: doar admin poate șterge
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only admins can delete sessions'
+      });
+    }
+
+    const { id } = req.params;
+
+    // Verifică dacă sesiunea există
+    const checkSession = await pool.query(
+      'SELECT id, apv_number, device_id FROM field_inventory_sessions WHERE id = $1',
+      [id]
+    );
+
+    if (checkSession.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    // Șterge sesiunea (cascade va șterge și tree records)
+    await pool.query('DELETE FROM field_inventory_sessions WHERE id = $1', [id]);
+
+    console.log(`✅ Admin ${req.user.username} deleted session ${id} (APV: ${checkSession.rows[0].apv_number})`);
+
+    res.json({
+      success: true,
+      message: 'Session deleted successfully',
+      session_id: parseInt(id)
+    });
+
+  } catch (err) {
+    console.error('Error deleting session:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete session'
+    });
+  }
+});
+
+// PATCH /api/field-inventory/session/:id
+// Editează o sesiune de inventar (doar admin)
+app.patch('/api/field-inventory/session/:id', authenticateToken, async (req, res) => {
+  try {
+    // Verificare: doar admin poate edita
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only admins can edit sessions'
+      });
+    }
+
+    const { id } = req.params;
+    const { apv_number, ua_number, inventory_date, total_trees, total_volume } = req.body;
+
+    // Verifică dacă sesiunea există
+    const checkSession = await pool.query(
+      'SELECT id FROM field_inventory_sessions WHERE id = $1',
+      [id]
+    );
+
+    if (checkSession.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    // Construiește query-ul de update dinamic
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (apv_number !== undefined) {
+      updates.push(`apv_number = $${paramIndex++}`);
+      values.push(apv_number);
+    }
+    if (ua_number !== undefined) {
+      updates.push(`ua_number = $${paramIndex++}`);
+      values.push(ua_number);
+    }
+    if (inventory_date !== undefined) {
+      updates.push(`inventory_date = $${paramIndex++}`);
+      values.push(inventory_date);
+    }
+    if (total_trees !== undefined) {
+      updates.push(`total_trees = $${paramIndex++}`);
+      values.push(total_trees);
+    }
+    if (total_volume !== undefined) {
+      updates.push(`total_volume = $${paramIndex++}`);
+      values.push(total_volume);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No fields to update'
+      });
+    }
+
+    values.push(id); // Add ID as last parameter
+
+    const updateQuery = `
+      UPDATE field_inventory_sessions
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await pool.query(updateQuery, values);
+
+    console.log(`✅ Admin ${req.user.username} updated session ${id}`);
+
+    res.json({
+      success: true,
+      message: 'Session updated successfully',
+      session: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error('Error updating session:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update session'
     });
   }
 });
