@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+Ôªø<!DOCTYPE html>
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
@@ -21,9 +21,9 @@
         .section { background: white; border-radius: 15px; padding: 30px; margin-bottom: 25px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
         .section h2 { color: #333; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 3px solid #667eea; }
         .tabs { display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 2px solid #e0e7ff; padding-bottom: 0; }
-        .tab { padding: 12px 25px; background: transparent; border: none; cursor: pointer; font-size: 15px; font-weight: 600; color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.3s; }
-        .tab:hover { color: #667eea; }
-        .tab.active { color: #667eea; border-bottom-color: #667eea; }
+        .tab { padding: 12px 25px; background: rgba(255,255,255,0.8); border: none; cursor: pointer; font-size: 15px; font-weight: 600; color: #333; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.3s; border-radius: 8px 8px 0 0; }
+        .tab:hover { color: #667eea; background: rgba(255,255,255,0.95); }
+        .tab.active { color: #667eea; border-bottom-color: #667eea; background: white; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -74,20 +74,20 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>ô Admin - Gestionare Aplicatii</h1>
+            <h1>ÔøΩ Admin - Gestionare Aplicatii</h1>
             <div>
-                <button class="btn btn-secondary" onclick="window.location.href='/dashboard.html'">ê Dashboard</button>
-                <button class="btn btn-danger" onclick="logout()">=™ Deconectare</button>
+                <button class="btn btn-secondary" onclick="window.location.href='/dashboard.html'">üìä Dashboard</button>
+                <button class="btn btn-danger" onclick="logout()">üö™ Deconectare</button>
             </div>
         </div>
 
         <div class="message" id="globalMessage"></div>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('overview')">=  Overview</button>
-            <button class="tab" onclick="switchTab('apps')">=Ò Aplicatii</button>
-            <button class="tab" onclick="switchTab('company-access')"><‚ Acces Companii</button>
-            <button class="tab" onclick="switchTab('user-overrides')">=d Override-uri Useri</button>
+            <button class="tab active" onclick="switchTab('overview')">üìä Overview</button>
+            <button class="tab" onclick="switchTab('apps')">üì± Aplicatii</button>
+            <button class="tab" onclick="switchTab('company-access')">üè¢ Acces Companii</button>
+            <button class="tab" onclick="switchTab('user-overrides')">üë§ Override-uri Useri</button>
         </div>
 
         <!-- OVERVIEW TAB -->
@@ -367,7 +367,7 @@
             const html = `<table><thead><tr><th>Icon</th><th>App ID</th><th>Nume</th><th>URL</th><th>Activa</th><th>Actiuni</th></tr></thead><tbody>` +
                 allApps.map(app => `
                     <tr>
-                        <td style="font-size: 32px;">${app.app_icon_url || '=Ò'}</td>
+                        <td style="font-size: 32px;">${app.app_icon_url || '=ÔøΩ'}</td>
                         <td><code>${app.app_id}</code></td>
                         <td><strong>${app.app_name}</strong><br><small style="color:#666;">${app.app_description || ''}</small></td>
                         <td><a href="${app.landing_url}" target="_blank">${app.landing_url}</a></td>

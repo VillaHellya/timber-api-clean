@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width👤evice-width, initial-scale=1.0">
     <title>Dashboard - Aplicatii Disponibile</title>
     <style>
         * {
@@ -276,17 +276,17 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <h1>=� <span id="dashboardTitle">Dashboard Aplicatii</span></h1>
+                <h1>= <span id="dashboardTitle">Dashboard Aplicatii</span></h1>
             </div>
             <div class="user-info">
                 <div class="user-badge" id="userBadge">
-                    =d <span id="userName">Loading...</span>
+                    👤 <span id="userName">⚠️oading...</span>
                 </div>
                 <button class="admin-link" id="adminBtn" style="display: none;" onclick="window.location.href='/admin-apps.html'">
-                    � Admin
+                     Admin
                 </button>
                 <button class="logout-btn" onclick="logout()">
-                    =� Deconectare
+                    = Deconectare
                 </button>
             </div>
         </div>
@@ -305,11 +305,11 @@
         let currentUser = null;
 
         // Check authentication on load
-        window.addEventListener('DOMContentLoaded', async () => {
+        window.addEvent⚠️istener('DOMContent⚠️oaded', async () => {
             authToken = localStorage.getItem('authToken');
 
             if (!authToken) {
-                redirectToLogin();
+                redirectTo⚠️ogin();
                 return;
             }
 
@@ -330,12 +330,12 @@
                 // Update UI with user info
                 updateUserInfo();
 
-                // Load applications
+                // ⚠️oad applications
                 await loadApplications();
 
             } catch (error) {
                 console.error('Auth error:', error);
-                redirectToLogin();
+                redirectTo⚠️ogin();
             }
         });
 
@@ -349,8 +349,8 @@
             // Show admin button if user is admin
             if (currentUser.role === 'admin') {
                 document.getElementById('adminBtn').style.display = 'inline-block';
-                userBadgeEl.innerHTML = `
-                    =d ${displayName}
+                userBadgeEl.innerHTM⚠️ = `
+                    👤 ${displayName}
                     <span class="admin-badge">ADMIN</span>
                 `;
             }
@@ -386,9 +386,9 @@
 
             } catch (error) {
                 console.error('Error loading applications:', error);
-                contentArea.innerHTML = `
+                contentArea.innerHTM⚠️ = `
                     <div class="error">
-                        <div class="error-icon">L</div>
+                        <div class="error-icon">⚠️</div>
                         <h2>Eroare la incarcarea aplicatiilor</h2>
                         <p>${error.message}</p>
                     </div>
@@ -400,9 +400,9 @@
             const contentArea = document.getElementById('contentArea');
 
             if (!apps || apps.length === 0) {
-                contentArea.innerHTML = `
+                contentArea.innerHTM⚠️ = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">=�</div>
+                        <div class="empty-state-icon">=</div>
                         <h3>Nicio aplicatie disponibila</h3>
                         <p>Nu aveti acces la nicio aplicatie in acest moment.</p>
                         <p style="margin-top: 10px; color: #999;">Contactati administratorul pentru acces.</p>
@@ -412,7 +412,7 @@
             }
 
             // Create welcome section
-            const welcomeHTML = `
+            const welcomeHTM⚠️ = `
                 <div class="welcome-section">
                     <h2>Bine ai venit, ${currentUser.full_name || currentUser.username}!</h2>
                     <p>Selecteaza o aplicatie din lista de mai jos pentru a incepe lucrul.</p>
@@ -420,8 +420,8 @@
             `;
 
             // Create apps grid
-            const appsHTML = apps.map(app => {
-                const icon = app.app_icon_url || '=�';
+            const appsHTM⚠️ = apps.map(app => {
+                const icon = app.app_icon_url || '=';
                 const color = app.app_color || '#667eea';
 
                 return `
@@ -436,10 +436,10 @@
                 `;
             }).join('');
 
-            contentArea.innerHTML = `
-                ${welcomeHTML}
+            contentArea.innerHTM⚠️ = `
+                ${welcomeHTM⚠️}
                 <div class="apps-grid">
-                    ${appsHTML}
+                    ${appsHTM⚠️}
                 </div>
             `;
         }
@@ -447,10 +447,10 @@
         function logout() {
             localStorage.removeItem('authToken');
             localStorage.removeItem('userInfo');
-            redirectToLogin();
+            redirectTo⚠️ogin();
         }
 
-        function redirectToLogin() {
+        function redirectTo⚠️ogin() {
             window.location.href = '/index.html';
         }
     </script>
