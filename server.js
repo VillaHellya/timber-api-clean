@@ -6,6 +6,8 @@ const { Readable } = require('stream');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { requireAdmin } = require('./middleware/appAccess');
+const applicationsRouter = require('./routes/applications');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -177,6 +179,17 @@ const checkCategoryAccess = (permission) => {
     }
   };
 };
+
+// ============================================================================
+// MULTI-APP DASHBOARD ROUTES
+// ============================================================================
+// Make services available to routes through app.locals
+app.locals.pool = pool;
+app.locals.authenticateToken = authenticateToken;
+app.locals.requireAdmin = requireAdmin;
+
+// Register application routes (applies authenticateToken middleware internally)
+app.use('/api/applications', authenticateToken, applicationsRouter);
 
 app.get('/', (req, res) => {
   res.json({message: 'Timber API with Multi-App Support', version: '7.1.0', status: 'running', features: ['companies', 'users', 'licenses', 'multi_app', 'offline_mode', 'field_inventory_sync']});

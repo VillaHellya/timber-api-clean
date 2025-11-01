@@ -3,481 +3,338 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timber API - Upload CSV</title>
+    <title>Multi-App Dashboard - Login</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-        .login-container { max-width: 400px; margin: 100px auto; background: white; border-radius: 15px; padding: 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-        .login-container h1 { color: #333; margin-bottom: 10px; text-align: center; }
-        .login-container p { color: #666; text-align: center; margin-bottom: 30px; }
-        .main-app { display: none; max-width: 1400px; margin: 0 auto; }
-        .header { background: white; border-radius: 15px; padding: 20px 30px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { color: #333; display: flex; align-items: center; gap: 10px; }
-        .user-info { display: flex; align-items: center; gap: 15px; }
-        .user-badge { background: #667eea; color: white; padding: 8px 15px; border-radius: 20px; font-size: 14px; }
-        .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; }
-        .logout-btn:hover { background: #c82333; }
-        .container { background: white; border-radius: 15px; padding: 40px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); margin-bottom: 30px; }
-        h2 { color: #333; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        input[type="text"], input[type="password"], select { width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 16px; margin-bottom: 15px; transition: border-color 0.3s; }
-        input[type="text"]:focus, input[type="password"]:focus, select:focus { outline: none; border-color: #764ba2; }
-        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: transform 0.2s; width: 100%; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
-        .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
-        .search-box { margin-bottom: 20px; position: relative; }
-        .search-box input { padding-left: 45px; }
-        .search-icon { position: absolute; left: 15px; top: 15px; font-size: 20px; }
-        .drop-zone { border: 3px dashed #667eea; border-radius: 12px; padding: 60px 20px; text-align: center; cursor: pointer; transition: all 0.3s; background: #f8f9ff; margin-bottom: 20px; }
-        .drop-zone:hover, .drop-zone.dragover { background: #e8ebff; border-color: #764ba2; transform: scale(1.02); }
-        .drop-zone-icon { font-size: 60px; margin-bottom: 20px; }
-        .category-section { margin: 30px 0; }
-        .category-group { margin-bottom: 20px; background: #f8f9ff; border-radius: 12px; padding: 15px; }
-        .category-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2px solid #667eea; }
-        .category-title { font-size: 18px; font-weight: bold; color: #667eea; }
-        .file-count { background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; }
-        .collapse-icon { font-size: 14px; color: #667eea; transition: transform 0.3s; }
-        .dataset-list { display: grid; gap: 8px; }
-        .dataset-item-compact { background: white; padding: 10px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e0e7ff; transition: transform 0.2s; }
-        .dataset-item-compact:hover { transform: translateX(5px); box-shadow: 0 2px 10px rgba(102, 126, 234, 0.2); }
-        .dataset-name { font-weight: 500; color: #333; font-size: 14px; }
-        .dataset-meta { color: #666; font-size: 12px; }
-        .delete-btn { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px; }
-        .delete-btn:hover { background: #c82333; }
-        .delete-btn-small { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-        .delete-btn-small:hover { background: #c82333; }
-        .message { padding: 15px; border-radius: 8px; margin: 20px 0; display: none; }
-        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .message.show { display: block; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .empty-state { text-align: center; padding: 40px; color: #999; }
-        .empty-state-icon { font-size: 60px; margin-bottom: 20px; }
-        .password-toggle { position: relative; }
-        .password-toggle button { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 20px; padding: 5px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            max-width: 420px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            padding: 50px 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 64px;
+        }
+
+        .login-container h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .login-container p {
+            color: #666;
+            text-align: center;
+            margin-bottom: 35px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #e0e7ff;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .message.error {
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+
+        .message.success {
+            background: #efe;
+            color: #3c3;
+            border: 1px solid #cfc;
+        }
+
+        .message.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
-    <div class="login-container" id="loginContainer">
-        <h1>🌲 Timber Inventory</h1>
-        <p>Autentificare necesară</p>
+    <div class="login-container">
+        <div class="logo">=�</div>
+        <h1>Multi-App Dashboard</h1>
+        <p>Autentificare pentru acces la aplicatii</p>
+
+        <div class="message" id="message"></div>
+
         <form id="loginForm">
-            <input type="text" id="loginUsername" placeholder="Username" required>
-            <div class="password-toggle">
-                <input type="password" id="loginPassword" placeholder="Parolă" required>
-                <button type="button" onclick="toggleLoginPassword()">👁️</button>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="Introduceti username-ul"
+                    required
+                    autocomplete="username"
+                >
             </div>
-            <button type="submit" class="btn">Login</button>
+
+            <div class="form-group">
+                <label for="password">Parola</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Introduceti parola"
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+
+            <button type="submit" class="btn" id="loginBtn">
+                Autentificare
+            </button>
         </form>
-        <div class="message" id="loginMessage"></div>
-    </div>
 
-    <div class="main-app" id="mainApp">
-        <div class="header">
-            <h1>🌲 Timber Inventory API</h1>
-            <div class="user-info">
-                <span class="user-badge" id="currentUser"></span>
-                <button class="logout-btn" onclick="logout()">Logout</button>
-            </div>
-        </div>
-
-        <div class="container">
-            <h2>📤 Upload și gestionare fișiere CSV</h2>
-            <p style="color: #666; margin-bottom: 30px;">Upload fișiere CSV cu categorii</p>
-            <div class="message" id="message"></div>
-            <div class="loader" id="loader"></div>
-
-            <div class="drop-zone" id="dropZone">
-                <div class="drop-zone-icon">📁</div>
-                <h3>Click, drag & drop sau upload multiple/folder</h3>
-                <p style="color: #666; margin-top: 10px;">Fișiere CSV acceptate</p>
-                <input type="file" id="fileInput" accept=".csv" multiple style="display: none;">
-                <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
-                <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-                    <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: auto;">📄 Selectează fișiere</button>
-                    <button class="btn" onclick="document.getElementById('folderInput').click()" style="width: auto;">📂 Selectează folder</button>
-                </div>
-            </div>
-
-            <div class="category-section">
-                <h3>📂 Selectează sau creează categorie</h3>
-                <select id="categorySelect">
-                    <option value="">Selectează categorie...</option>
-                </select>
-                <input type="text" id="newCategory" placeholder="Sau creează categorie nouă...">
-                <button class="btn" id="uploadBtn" disabled>Folosește</button>
-            </div>
-        </div>
-
-        <div class="container">
-            <div class="search-box">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="searchInput" placeholder="Caută fișiere sau categorii...">
-            </div>
-            <h2>📊 Datasets organizate pe categorii</h2>
-            <div id="datasetsContainer"></div>
+        <div class="footer">
+            Multi-App Dashboard System &copy; 2025
         </div>
     </div>
 
     <script>
-        let token = localStorage.getItem('timberToken');
-        let currentUser = null;
-        let selectedFiles = [];
-        let allDatasets = [];
+        const API_BASE = window.location.origin;
 
-        if (token) { verifyToken(); }
+        // Check if already logged in
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                // Verify token is still valid
+                fetch(`${API_BASE}/api/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Token valid, redirect to dashboard
+                        window.location.href = '/dashboard.html';
+                    } else {
+                        // Token invalid, remove it
+                        localStorage.removeItem('authToken');
+                    }
+                })
+                .catch(err => {
+                    console.error('Auth check failed:', err);
+                    localStorage.removeItem('authToken');
+                });
+            }
+        });
 
+        // Login form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = document.getElementById('loginUsername').value;
-            const password = document.getElementById('loginPassword').value;
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+            const messageDiv = document.getElementById('message');
+
+            // Validation
+            if (!username || !password) {
+                showMessage('Introduceti username si parola', 'error');
+                return;
+            }
+
+            // Disable button and show loading
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = 'Se autentifica... <span class="loading"></span>';
+
             try {
-                const response = await fetch('/api/auth/login', {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({ username, password })
                 });
+
                 const data = await response.json();
-                if (response.ok) {
-                    token = data.token;
-                    currentUser = data.user;
-                    localStorage.setItem('timberToken', token);
-                    
-                    const userInfoResponse = await fetch('/api/auth/me', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (userInfoResponse.ok) {
-                        const userInfo = await userInfoResponse.json();
-                        currentUser.categories = userInfo.categories || [];
-                    }
-                    
-                    document.getElementById('loginContainer').style.display = 'none';
-                    document.getElementById('mainApp').style.display = 'block';
-                    document.getElementById('currentUser').textContent = `👤 ${data.user.full_name || data.user.username}`;
-                    loadCategories();
-                    loadDatasets();
-                } else {
-                    showLoginMessage(data.error || 'Login eșuat', 'error');
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Autentificare esuata');
                 }
-            } catch (err) {
-                showLoginMessage('Eroare de conexiune', 'error');
+
+                // Success - store token and user info
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('userInfo', JSON.stringify(data.user));
+
+                showMessage('Autentificare reusita! Redirectionare...', 'success');
+
+                // Redirect to dashboard after short delay
+                setTimeout(() => {
+                    window.location.href = '/dashboard.html';
+                }, 500);
+
+            } catch (error) {
+                console.error('Login error:', error);
+                showMessage(error.message || 'Eroare de conexiune la server', 'error');
+
+                // Re-enable button
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Autentificare';
             }
         });
-
-        async function verifyToken() {
-            try {
-                const response = await fetch('/api/auth/me', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    currentUser = data;
-                    currentUser.categories = data.categories || [];
-                    
-                    document.getElementById('loginContainer').style.display = 'none';
-                    document.getElementById('mainApp').style.display = 'block';
-                    document.getElementById('currentUser').textContent = `👤 ${data.full_name || data.username}`;
-                    loadCategories();
-                    loadDatasets();
-                } else {
-                    logout();
-                }
-            } catch (err) {
-                logout();
-            }
-        }
-
-        function logout() {
-            localStorage.removeItem('timberToken');
-            token = null;
-            currentUser = null;
-            document.getElementById('loginContainer').style.display = 'block';
-            document.getElementById('mainApp').style.display = 'none';
-            document.getElementById('loginForm').reset();
-        }
-
-        function toggleLoginPassword() {
-            const input = document.getElementById('loginPassword');
-            const button = event.target;
-            if (input.type === 'password') {
-                input.type = 'text';
-                button.textContent = '🙈';
-            } else {
-                input.type = 'password';
-                button.textContent = '👁️';
-            }
-        }
-
-        function showLoginMessage(text, type) {
-            const msg = document.getElementById('loginMessage');
-            msg.textContent = text;
-            msg.className = `message ${type} show`;
-            setTimeout(() => msg.classList.remove('show'), 5000);
-        }
 
         function showMessage(text, type) {
-            const msg = document.getElementById('message');
-            msg.textContent = text;
-            msg.className = `message ${type} show`;
-            setTimeout(() => msg.classList.remove('show'), 5000);
-        }
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type} show`;
 
-        async function loadCategories() {
-            try {
-                const response = await fetch('/api/categories', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    const select = document.getElementById('categorySelect');
-                    select.innerHTML = '<option value="">Selectează categorie...</option>';
-                    data.categories.forEach(cat => {
-                        const option = document.createElement('option');
-                        option.value = cat;
-                        option.textContent = cat;
-                        select.appendChild(option);
-                    });
-                }
-            } catch (err) {
-                console.error('Error loading categories:', err);
+            // Auto-hide success messages after 3 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.classList.remove('show');
+                }, 3000);
             }
         }
 
-        async function loadDatasets() {
-            document.getElementById('loader').style.display = 'block';
-            try {
-                const response = await fetch('/api/datasets', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    allDatasets = data.datasets;
-                    displayDatasets(allDatasets);
-                }
-            } catch (err) {
-                showMessage('Eroare la încărcarea datasets', 'error');
-            } finally {
-                document.getElementById('loader').style.display = 'none';
-            }
-        }
-
-        function hasDeletePermission(category) {
-            if (currentUser.role === 'admin') return true;
-            if (!currentUser.categories) return false;
-            const userCat = currentUser.categories.find(c => c && c.category === category);
-            return userCat && userCat.can_delete === true;
-        }
-
-        function displayDatasets(datasets) {
-            const container = document.getElementById('datasetsContainer');
-            if (datasets.length === 0) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><h3>Niciun dataset găsit</h3><p>Uploadează primul fișier CSV!</p></div>';
-                return;
-            }
-            const grouped = datasets.reduce((acc, item) => {
-                if (!acc[item.category]) acc[item.category] = [];
-                acc[item.category].push(item);
-                return acc;
-            }, {});
-            
-            container.innerHTML = Object.entries(grouped).map(([category, files]) => `
-                <div class="category-group">
-                    <div class="category-header" onclick="toggleCategory('${category}')" style="cursor: pointer;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span class="collapse-icon" id="icon-${category}">▼</span>
-                            <span class="category-title">${category}</span>
-                            <span class="file-count">${files.length} fișiere</span>
-                        </div>
-                        ${currentUser.role === 'admin' || hasDeletePermission(category) ? 
-                            `<button class="delete-btn" onclick="event.stopPropagation(); deleteCategoryConfirm('${category}')" style="font-size: 12px;">🗑️ Șterge categoria</button>` : 
-                            ''}
-                    </div>
-                    <div class="dataset-list" id="list-${category}">
-                        ${files.map(file => `
-                            <div class="dataset-item-compact">
-                                <div class="dataset-name">${file.filename}</div>
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <div class="dataset-meta">📊 ${file.record_count} | 📅 ${new Date(file.uploaded_at).toLocaleDateString('ro-RO')}</div>
-                                    ${currentUser.role === 'admin' || hasDeletePermission(category) ? 
-                                        `<button class="delete-btn-small" onclick="deleteDataset(${file.id}, '${file.filename}')">🗑️</button>` : ''}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function toggleCategory(category) {
-            const list = document.getElementById('list-' + category);
-            const icon = document.getElementById('icon-' + category);
-            if (list.style.display === 'none') {
-                list.style.display = 'grid';
-                icon.textContent = '▼';
-            } else {
-                list.style.display = 'none';
-                icon.textContent = '▶';
-            }
-        }
-
-        async function deleteCategoryConfirm(category) {
-            const count = allDatasets.filter(d => d.category === category).length;
-            if (!confirm(`Sigur vrei să ștergi ÎNTREAGA categorie "${category}" cu ${count} fișiere?`)) return;
-            
-            document.getElementById('loader').style.display = 'block';
-            const files = allDatasets.filter(d => d.category === category);
-            let successCount = 0;
-            
-            for (const file of files) {
-                try {
-                    const response = await fetch(`/api/data/${file.id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (response.ok) successCount++;
-                } catch (err) {
-                    console.error('Error deleting:', err);
-                }
-            }
-            
-            document.getElementById('loader').style.display = 'none';
-            showMessage(`${successCount} fișiere șterse din categoria "${category}"`, 'success');
-            loadCategories();
-            loadDatasets();
-        }
-
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filtered = allDatasets.filter(item => 
-                item.filename.toLowerCase().includes(searchTerm) ||
-                item.category.toLowerCase().includes(searchTerm)
-            );
-            displayDatasets(filtered);
-        });
-
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const folderInput = document.getElementById('folderInput');
-
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
-        });
-
-        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-        folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-        function handleFiles(files) {
-            selectedFiles = Array.from(files).filter(f => f.name.endsWith('.csv'));
-            if (selectedFiles.length === 0) {
-                showMessage('Niciun fișier CSV selectat', 'error');
-                return;
-            }
-            showMessage(`${selectedFiles.length} fișiere CSV selectate`, 'success');
-            document.getElementById('uploadBtn').disabled = false;
-        }
-
-        function stripTimestamp(filename) {
-            return filename.replace(/_\d{4}-\d{2}-\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}Z/g, '');
-        }
-
-        document.getElementById('uploadBtn').addEventListener('click', async () => {
-            const category = document.getElementById('categorySelect').value || 
-                           document.getElementById('newCategory').value.trim();
-            if (!category) {
-                showMessage('Selectează sau creează o categorie', 'error');
-                return;
-            }
-            if (selectedFiles.length === 0) {
-                showMessage('Niciun fișier selectat', 'error');
-                return;
-            }
-            document.getElementById('uploadBtn').disabled = true;
-            document.getElementById('loader').style.display = 'block';
-            
-            const existingFiles = allDatasets
-                .filter(d => d.category === category)
-                .map(d => stripTimestamp(d.filename));
-            
-            let successCount = 0;
-            let errorCount = 0;
-            let duplicateCount = 0;
-
-            for (const file of selectedFiles) {
-                const baseFilename = stripTimestamp(file.name);
-                
-                if (existingFiles.includes(baseFilename)) {
-                    duplicateCount++;
-                    continue;
-                }
-                
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('category', category);
-
-                try {
-                    const response = await fetch('/api/upload', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` },
-                        body: formData
-                    });
-                    if (response.ok) {
-                        successCount++;
-                        existingFiles.push(baseFilename);
-                    } else {
-                        errorCount++;
-                    }
-                } catch (err) {
-                    errorCount++;
-                }
-            }
-
-            document.getElementById('loader').style.display = 'none';
-            document.getElementById('uploadBtn').disabled = false;
-
-            let message = '';
-            if (successCount > 0) message += `✅ ${successCount} fișiere uploadate! `;
-            if (duplicateCount > 0) message += `⚠️ ${duplicateCount} duplicate ignorate! `;
-            if (errorCount > 0) message += `❌ ${errorCount} erori!`;
-            
-            showMessage(message, successCount > 0 ? 'success' : 'error');
-            
-            if (successCount > 0) {
-                loadCategories();
-                loadDatasets();
-                selectedFiles = [];
-                fileInput.value = '';
-                folderInput.value = '';
+        // Allow Enter key to submit
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
             }
         });
-
-        async function deleteDataset(id, filename) {
-            if (!confirm(`Sigur vrei să ștergi "${filename}"?`)) return;
-            try {
-                const response = await fetch(`/api/data/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    showMessage('Dataset șters cu succes', 'success');
-                    loadDatasets();
-                } else {
-                    const error = await response.json();
-                    showMessage(error.error || 'Eroare la ștergere', 'error');
-                }
-            } catch (err) {
-                showMessage('Eroare de conexiune', 'error');
-            }
-        }
     </script>
 </body>
 </html>

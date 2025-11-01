@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Aplicatii Disponibile</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-left h1 {
+            color: #333;
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .admin-badge {
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .admin-link {
+            background: #ffc107;
+            color: #333;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .admin-link:hover {
+            background: #ffb300;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 193, 7, 0.3);
+        }
+
+        .welcome-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .welcome-section h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .welcome-section p {
+            color: #666;
+            font-size: 15px;
+        }
+
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .app-card {
+            background: white;
+            border-radius: 20px;
+            padding: 35px 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .app-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+
+        .app-icon {
+            font-size: 56px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .app-name {
+            font-size: 22px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .app-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+            text-align: center;
+            min-height: 60px;
+        }
+
+        .app-badge {
+            display: inline-block;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .loading-spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            color: #c33;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .error-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            background: white;
+            padding: 60px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .empty-state-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 20px;
+            }
+
+            .header-left h1 {
+                font-size: 24px;
+            }
+
+            .apps-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .user-info {
+                flex-wrap: wrap;
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>=ñ <span id="dashboardTitle">Dashboard Aplicatii</span></h1>
+            </div>
+            <div class="user-info">
+                <div class="user-badge" id="userBadge">
+                    =d <span id="userName">Loading...</span>
+                </div>
+                <button class="admin-link" id="adminBtn" style="display: none;" onclick="window.location.href='/admin-apps.html'">
+                    ™ Admin
+                </button>
+                <button class="logout-btn" onclick="logout()">
+                    =ª Deconectare
+                </button>
+            </div>
+        </div>
+
+        <div id="contentArea">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>Se incarca aplicatiile disponibile...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let authToken = null;
+        let currentUser = null;
+
+        // Check authentication on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            authToken = localStorage.getItem('authToken');
+
+            if (!authToken) {
+                redirectToLogin();
+                return;
+            }
+
+            try {
+                // Verify token and get user info
+                const userResponse = await fetch(`${API_BASE}/api/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!userResponse.ok) {
+                    throw new Error('Invalid token');
+                }
+
+                currentUser = await userResponse.json();
+
+                // Update UI with user info
+                updateUserInfo();
+
+                // Load applications
+                await loadApplications();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+                redirectToLogin();
+            }
+        });
+
+        function updateUserInfo() {
+            const userNameEl = document.getElementById('userName');
+            const userBadgeEl = document.getElementById('userBadge');
+
+            const displayName = currentUser.full_name || currentUser.username;
+            userNameEl.textContent = displayName;
+
+            // Show admin button if user is admin
+            if (currentUser.role === 'admin') {
+                document.getElementById('adminBtn').style.display = 'inline-block';
+                userBadgeEl.innerHTML = `
+                    =d ${displayName}
+                    <span class="admin-badge">ADMIN</span>
+                `;
+            }
+
+            // Update company info if available
+            if (currentUser.company_name) {
+                document.getElementById('dashboardTitle').textContent = currentUser.company_name;
+            }
+        }
+
+        async function loadApplications() {
+            const contentArea = document.getElementById('contentArea');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/applications`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load applications');
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error');
+                }
+
+                // Display applications
+                displayApplications(data.applications);
+
+            } catch (error) {
+                console.error('Error loading applications:', error);
+                contentArea.innerHTML = `
+                    <div class="error">
+                        <div class="error-icon">L</div>
+                        <h2>Eroare la incarcarea aplicatiilor</h2>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function displayApplications(apps) {
+            const contentArea = document.getElementById('contentArea');
+
+            if (!apps || apps.length === 0) {
+                contentArea.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">=í</div>
+                        <h3>Nicio aplicatie disponibila</h3>
+                        <p>Nu aveti acces la nicio aplicatie in acest moment.</p>
+                        <p style="margin-top: 10px; color: #999;">Contactati administratorul pentru acces.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Create welcome section
+            const welcomeHTML = `
+                <div class="welcome-section">
+                    <h2>Bine ai venit, ${currentUser.full_name || currentUser.username}!</h2>
+                    <p>Selecteaza o aplicatie din lista de mai jos pentru a incepe lucrul.</p>
+                </div>
+            `;
+
+            // Create apps grid
+            const appsHTML = apps.map(app => {
+                const icon = app.app_icon_url || '=ñ';
+                const color = app.app_color || '#667eea';
+
+                return `
+                    <a href="${app.landing_url}" class="app-card" style="border-left: 5px solid ${color}">
+                        <div class="app-icon">${icon}</div>
+                        <div class="app-name">${app.app_name}</div>
+                        <div class="app-description">${app.app_description || 'Fara descriere disponibila'}</div>
+                        <div style="text-align: center;">
+                            <span class="app-badge">Disponibil</span>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+
+            contentArea.innerHTML = `
+                ${welcomeHTML}
+                <div class="apps-grid">
+                    ${appsHTML}
+                </div>
+            `;
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userInfo');
+            redirectToLogin();
+        }
+
+        function redirectToLogin() {
+            window.location.href = '/index.html';
+        }
+    </script>
+</body>
+</html>

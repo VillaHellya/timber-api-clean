@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Gestionare Aplicatii</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header { background: white; padding: 25px 35px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .header h1 { color: #333; font-size: 28px; }
+        .btn { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.3s; }
+        .btn:hover { background: #5568d3; transform: translateY(-2px); }
+        .btn-success { background: #51cf66; }
+        .btn-success:hover { background: #40c057; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-secondary { background: #6c757d; }
+        .btn-secondary:hover { background: #5a6268; }
+        .section { background: white; border-radius: 15px; padding: 30px; margin-bottom: 25px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .section h2 { color: #333; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 3px solid #667eea; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 2px solid #e0e7ff; padding-bottom: 0; }
+        .tab { padding: 12px 25px; background: transparent; border: none; cursor: pointer; font-size: 15px; font-weight: 600; color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.3s; }
+        .tab:hover { color: #667eea; }
+        .tab.active { color: #667eea; border-bottom-color: #667eea; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        thead { background: #f8f9ff; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e0e7ff; }
+        th { font-weight: 600; color: #333; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover { background: #f8f9ff; }
+        .badge { display: inline-block; padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: bold; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-info { background: #d1ecf1; color: #0c5460; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; color: #333; font-weight: 600; font-size: 14px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 14px; border: 2px solid #e0e7ff; border-radius: 8px; font-size: 14px; transition: all 0.3s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 15px; padding: 35px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .modal-header h3 { color: #333; font-size: 22px; }
+        .close-btn { background: none; border: none; font-size: 28px; color: #999; cursor: pointer; transition: color 0.3s; }
+        .close-btn:hover { color: #333; }
+        .loading { text-align: center; padding: 40px; color: #667eea; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .message { padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; display: none; }
+        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message.show { display: block; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; }
+        .stat-value { font-size: 36px; font-weight: bold; margin: 10px 0; }
+        .stat-label { font-size: 13px; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-group { display: flex; gap: 8px; }
+        .btn-small { padding: 6px 12px; font-size: 12px; }
+        .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #667eea; }
+        input:checked + .slider:before { transform: translateX(26px); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ô Admin - Gestionare Aplicatii</h1>
+            <div>
+                <button class="btn btn-secondary" onclick="window.location.href='/dashboard.html'">ê Dashboard</button>
+                <button class="btn btn-danger" onclick="logout()">=™ Deconectare</button>
+            </div>
+        </div>
+
+        <div class="message" id="globalMessage"></div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('overview')">=  Overview</button>
+            <button class="tab" onclick="switchTab('apps')">=Ò Aplicatii</button>
+            <button class="tab" onclick="switchTab('company-access')"><‚ Acces Companii</button>
+            <button class="tab" onclick="switchTab('user-overrides')">=d Override-uri Useri</button>
+        </div>
+
+        <!-- OVERVIEW TAB -->
+        <div id="overview-tab" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Aplicatii</div>
+                    <div class="stat-value" id="totalApps">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Companii cu Acces</div>
+                    <div class="stat-value" id="totalCompanyAccess">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Override-uri Useri</div>
+                    <div class="stat-value" id="totalUserOverrides">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- APPLICATIONS TAB -->
+        <div id="apps-tab" class="tab-content">
+            <div class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; border: none; padding: 0;">Aplicatii Inregistrate</h2>
+                    <button class="btn btn-success" onclick="showAppModal()">+ Adauga Aplicatie</button>
+                </div>
+                <div id="appsTableContainer"></div>
+            </div>
+        </div>
+
+        <!-- COMPANY ACCESS TAB -->
+        <div id="company-access-tab" class="tab-content">
+            <div class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; border: none; padding: 0;">Acces Companii la Aplicatii</h2>
+                    <button class="btn btn-success" onclick="showCompanyAccessModal()">+ Acorda Acces</button>
+                </div>
+                <div id="companyAccessTableContainer"></div>
+            </div>
+        </div>
+
+        <!-- USER OVERRIDES TAB -->
+        <div id="user-overrides-tab" class="tab-content">
+            <div class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; border: none; padding: 0;">Override-uri Acces Useri</h2>
+                    <button class="btn btn-success" onclick="showUserOverrideModal()">+ Adauga Override</button>
+                </div>
+                <div id="userOverridesTableContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Add/Edit Application -->
+    <div id="appModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="appModalTitle">Adauga Aplicatie</h3>
+                <button class="close-btn" onclick="closeModal('appModal')">&times;</button>
+            </div>
+            <div class="message" id="appModalMessage"></div>
+            <form id="appForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>App ID *</label>
+                        <input type="text" id="app_id" required placeholder="ex: control-anual">
+                        <small style="color: #666; font-size: 11px;">Doar litere mici, cifre si cratima</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Nume Aplicatie *</label>
+                        <input type="text" id="app_name" required placeholder="ex: Control Anual">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Descriere</label>
+                    <textarea id="app_description" rows="3" placeholder="Descriere scurta a aplicatiei..."></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Icona (emoji sau URL)</label>
+                        <input type="text" id="app_icon_url" placeholder="<2 sau http://...">
+                    </div>
+                    <div class="form-group">
+                        <label>Culoare (hex)</label>
+                        <input type="text" id="app_color" placeholder="#667eea">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Landing URL *</label>
+                        <input type="text" id="landing_url" required placeholder="/apps/control-anual/">
+                    </div>
+                    <div class="form-group">
+                        <label>API Base Path</label>
+                        <input type="text" id="api_base_path" placeholder="/api/control-anual">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ordine Afisare</label>
+                        <input type="number" id="display_order" value="0">
+                    </div>
+                </div>
+                <div class="btn-group" style="margin-top: 25px;">
+                    <button type="submit" class="btn btn-success">Salveaza</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('appModal')">Anuleaza</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Company Access -->
+    <div id="companyAccessModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Acorda Acces Companie</h3>
+                <button class="close-btn" onclick="closeModal('companyAccessModal')">&times;</button>
+            </div>
+            <div class="message" id="companyAccessMessage"></div>
+            <form id="companyAccessForm">
+                <div class="form-group">
+                    <label>Companie *</label>
+                    <select id="ca_company_id" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Aplicatie *</label>
+                    <select id="ca_app_id" required></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Max Dispozitive</label>
+                        <input type="number" id="ca_max_devices" value="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Expirare Licenta</label>
+                        <input type="date" id="ca_license_expires_at">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Note</label>
+                    <textarea id="ca_notes" rows="2" placeholder="Optional..."></textarea>
+                </div>
+                <div class="btn-group" style="margin-top: 20px;">
+                    <button type="submit" class="btn btn-success">Acorda Acces</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('companyAccessModal')">Anuleaza</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: User Override -->
+    <div id="userOverrideModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Adauga Override User</h3>
+                <button class="close-btn" onclick="closeModal('userOverrideModal')">&times;</button>
+            </div>
+            <div class="message" id="userOverrideMessage"></div>
+            <form id="userOverrideForm">
+                <div class="form-group">
+                    <label>User *</label>
+                    <select id="uo_user_id" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Aplicatie *</label>
+                    <select id="uo_app_id" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Tip Acces *</label>
+                    <select id="uo_access_type" required>
+                        <option value="inherit">Inherit (mosteneste de la companie)</option>
+                        <option value="allow">Allow (permite chiar daca compania nu are)</option>
+                        <option value="deny">Deny (interzice chiar daca compania are)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Note</label>
+                    <textarea id="uo_notes" rows="2" placeholder="Motiv override..."></textarea>
+                </div>
+                <div class="btn-group" style="margin-top: 20px;">
+                    <button type="submit" class="btn btn-success">Salveaza Override</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('userOverrideModal')">Anuleaza</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let authToken = null;
+        let currentUser = null;
+
+        let allApps = [];
+        let allCompanies = [];
+        let allUsers = [];
+        let allCompanyAccess = [];
+        let allUserOverrides = [];
+
+        // Auth check
+        window.addEventListener('DOMContentLoaded', async () => {
+            authToken = localStorage.getItem('authToken');
+            if (!authToken) { window.location.href = '/index.html'; return; }
+
+            try {
+                const userRes = await fetch(`${API_BASE}/api/auth/me`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                if (!userRes.ok) throw new Error('Invalid token');
+                currentUser = await userRes.json();
+                if (currentUser.role !== 'admin') { showGlobalMessage('Acces interzis - doar pentru admini', 'error'); setTimeout(() => window.location.href = '/dashboard.html', 2000); return; }
+
+                await loadAllData();
+            } catch (error) {
+                window.location.href = '/index.html';
+            }
+        });
+
+        async function loadAllData() {
+            await Promise.all([loadApplications(), loadCompanies(), loadUsers(), loadCompanyAccess(), loadUserOverrides()]);
+            updateStats();
+        }
+
+        async function loadApplications() {
+            try {
+                const res = await fetch(`${API_BASE}/api/applications`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const data = await res.json();
+                allApps = data.applications || [];
+                displayApplications();
+            } catch (error) { console.error('Error loading apps:', error); }
+        }
+
+        async function loadCompanies() {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/companies`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const data = await res.json();
+                allCompanies = data.companies || [];
+            } catch (error) { console.error('Error loading companies:', error); }
+        }
+
+        async function loadUsers() {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/users`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const data = await res.json();
+                allUsers = data.users || [];
+            } catch (error) { console.error('Error loading users:', error); }
+        }
+
+        async function loadCompanyAccess() {
+            try {
+                const res = await fetch(`${API_BASE}/api/applications/admin/company-apps`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const data = await res.json();
+                allCompanyAccess = data.company_apps || [];
+                displayCompanyAccess();
+            } catch (error) { console.error('Error loading company access:', error); }
+        }
+
+        async function loadUserOverrides() {
+            try {
+                const res = await fetch(`${API_BASE}/api/applications/admin/user-apps`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+                const data = await res.json();
+                allUserOverrides = data.user_apps || [];
+                displayUserOverrides();
+            } catch (error) { console.error('Error loading user overrides:', error); }
+        }
+
+        function updateStats() {
+            document.getElementById('totalApps').textContent = allApps.length;
+            document.getElementById('totalCompanyAccess').textContent = allCompanyAccess.length;
+            document.getElementById('totalUserOverrides').textContent = allUserOverrides.length;
+        }
+
+        function displayApplications() {
+            const container = document.getElementById('appsTableContainer');
+            if (allApps.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Nicio aplicatie inregistrata</p></div>';
+                return;
+            }
+            const html = `<table><thead><tr><th>Icon</th><th>App ID</th><th>Nume</th><th>URL</th><th>Activa</th><th>Actiuni</th></tr></thead><tbody>` +
+                allApps.map(app => `
+                    <tr>
+                        <td style="font-size: 32px;">${app.app_icon_url || '=Ò'}</td>
+                        <td><code>${app.app_id}</code></td>
+                        <td><strong>${app.app_name}</strong><br><small style="color:#666;">${app.app_description || ''}</small></td>
+                        <td><a href="${app.landing_url}" target="_blank">${app.landing_url}</a></td>
+                        <td><span class="badge ${app.is_active ? 'badge-success' : 'badge-danger'}">${app.is_active ? 'DA' : 'NU'}</span></td>
+                        <td><button class="btn btn-small" onclick='editApp(${JSON.stringify(app)})'>Editeaza</button></td>
+                    </tr>
+                `).join('') +
+                `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function displayCompanyAccess() {
+            const container = document.getElementById('companyAccessTableContainer');
+            if (allCompanyAccess.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Niciun acces acordat</p></div>';
+                return;
+            }
+            const html = `<table><thead><tr><th>Companie</th><th>Aplicatie</th><th>Activ</th><th>Max Dispoz.</th><th>Expira</th><th>Actiuni</th></tr></thead><tbody>` +
+                allCompanyAccess.map(ca => `
+                    <tr>
+                        <td><strong>${ca.company_name}</strong></td>
+                        <td>${ca.app_name}</td>
+                        <td><span class="badge ${ca.is_enabled ? 'badge-success' : 'badge-danger'}">${ca.is_enabled ? 'DA' : 'NU'}</span></td>
+                        <td>${ca.max_devices || '-'}</td>
+                        <td>${ca.license_expires_at ? new Date(ca.license_expires_at).toLocaleDateString('ro-RO') : 'Niciodata'}</td>
+                        <td><button class="btn btn-danger btn-small" onclick="revokeCompanyAccess(${ca.id})">Revoca</button></td>
+                    </tr>
+                `).join('') +
+                `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function displayUserOverrides() {
+            const container = document.getElementById('userOverridesTableContainer');
+            if (allUserOverrides.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Niciun override</p></div>';
+                return;
+            }
+            const html = `<table><thead><tr><th>User</th><th>Companie</th><th>Aplicatie</th><th>Tip Acces</th><th>Note</th><th>Actiuni</th></tr></thead><tbody>` +
+                allUserOverrides.map(uo => `
+                    <tr>
+                        <td><strong>${uo.full_name || uo.username}</strong></td>
+                        <td>${uo.company_name || '-'}</td>
+                        <td>${uo.app_name}</td>
+                        <td><span class="badge ${uo.access_type === 'allow' ? 'badge-success' : uo.access_type === 'deny' ? 'badge-danger' : 'badge-info'}">${uo.access_type.toUpperCase()}</span></td>
+                        <td><small>${uo.notes || '-'}</small></td>
+                        <td><button class="btn btn-danger btn-small" onclick="deleteUserOverride(${uo.id})">Sterge</button></td>
+                    </tr>
+                `).join('') +
+                `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        // Modals
+        function showAppModal(app = null) {
+            document.getElementById('appModalTitle').textContent = app ? 'Editeaza Aplicatie' : 'Adauga Aplicatie';
+            if (app) {
+                document.getElementById('app_id').value = app.app_id;
+                document.getElementById('app_id').readOnly = true;
+                document.getElementById('app_name').value = app.app_name;
+                document.getElementById('app_description').value = app.app_description || '';
+                document.getElementById('app_icon_url').value = app.app_icon_url || '';
+                document.getElementById('app_color').value = app.app_color || '';
+                document.getElementById('landing_url').value = app.landing_url;
+                document.getElementById('api_base_path').value = app.api_base_path || '';
+                document.getElementById('display_order').value = app.display_order || 0;
+            } else {
+                document.getElementById('appForm').reset();
+                document.getElementById('app_id').readOnly = false;
+            }
+            document.getElementById('appModal').classList.add('show');
+        }
+
+        function editApp(app) { showAppModal(app); }
+
+        async function showCompanyAccessModal() {
+            const compSelect = document.getElementById('ca_company_id');
+            const appSelect = document.getElementById('ca_app_id');
+            compSelect.innerHTML = '<option value="">Selecteaza...</option>' + allCompanies.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            appSelect.innerHTML = '<option value="">Selecteaza...</option>' + allApps.map(a => `<option value="${a.app_id}">${a.app_name}</option>`).join('');
+            document.getElementById('companyAccessModal').classList.add('show');
+        }
+
+        async function showUserOverrideModal() {
+            const userSelect = document.getElementById('uo_user_id');
+            const appSelect = document.getElementById('uo_app_id');
+            userSelect.innerHTML = '<option value="">Selecteaza...</option>' + allUsers.map(u => `<option value="${u.id}">${u.full_name || u.username} (${u.username})</option>`).join('');
+            appSelect.innerHTML = '<option value="">Selecteaza...</option>' + allApps.map(a => `<option value="${a.app_id}">${a.app_name}</option>`).join('');
+            document.getElementById('userOverrideModal').classList.add('show');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        // Form submissions
+        document.getElementById('appForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const isEdit = document.getElementById('app_id').readOnly;
+            const data = {
+                app_id: document.getElementById('app_id').value.toLowerCase().trim(),
+                app_name: document.getElementById('app_name').value.trim(),
+                app_description: document.getElementById('app_description').value.trim() || null,
+                app_icon_url: document.getElementById('app_icon_url').value.trim() || null,
+                app_color: document.getElementById('app_color').value.trim() || null,
+                landing_url: document.getElementById('landing_url').value.trim(),
+                api_base_path: document.getElementById('api_base_path').value.trim() || null,
+                display_order: parseInt(document.getElementById('display_order').value) || 0
+            };
+            try {
+                const method = isEdit ? 'PUT' : 'POST';
+                const url = isEdit ? `${API_BASE}/api/applications/admin/applications/${data.app_id}` : `${API_BASE}/api/applications/admin/applications`;
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    showGlobalMessage(isEdit ? 'Aplicatie actualizata!' : 'Aplicatie adaugata!', 'success');
+                    closeModal('appModal');
+                    loadApplications();
+                } else {
+                    showModalMessage('appModalMessage', result.error || 'Eroare', 'error');
+                }
+            } catch (error) {
+                showModalMessage('appModalMessage', 'Eroare de conexiune', 'error');
+            }
+        });
+
+        document.getElementById('companyAccessForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                company_id: parseInt(document.getElementById('ca_company_id').value),
+                app_id: document.getElementById('ca_app_id').value,
+                max_devices: parseInt(document.getElementById('ca_max_devices').value) || 3,
+                license_expires_at: document.getElementById('ca_license_expires_at').value || null,
+                notes: document.getElementById('ca_notes').value.trim() || null
+            };
+            try {
+                const res = await fetch(`${API_BASE}/api/applications/admin/company-apps`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    showGlobalMessage('Acces acordat companiei!', 'success');
+                    closeModal('companyAccessModal');
+                    loadCompanyAccess();
+                } else {
+                    showModalMessage('companyAccessMessage', result.error || 'Eroare', 'error');
+                }
+            } catch (error) {
+                showModalMessage('companyAccessMessage', 'Eroare de conexiune', 'error');
+            }
+        });
+
+        document.getElementById('userOverrideForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                user_id: parseInt(document.getElementById('uo_user_id').value),
+                app_id: document.getElementById('uo_app_id').value,
+                access_type: document.getElementById('uo_access_type').value,
+                is_enabled: true,
+                notes: document.getElementById('uo_notes').value.trim() || null
+            };
+            try {
+                const res = await fetch(`${API_BASE}/api/applications/admin/user-apps`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    showGlobalMessage('Override creat!', 'success');
+                    closeModal('userOverrideModal');
+                    loadUserOverrides();
+                } else {
+                    showModalMessage('userOverrideMessage', result.error || 'Eroare', 'error');
+                }
+            } catch (error) {
+                showModalMessage('userOverrideMessage', 'Eroare de conexiune', 'error');
+            }
+        });
+
+        async function revokeCompanyAccess(id) {
+            if (!confirm('Sigur vrei sa revoci acest acces?')) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/applications/admin/company-apps/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (res.ok) {
+                    showGlobalMessage('Acces revocat!', 'success');
+                    loadCompanyAccess();
+                } else {
+                    showGlobalMessage('Eroare la revocare', 'error');
+                }
+            } catch (error) {
+                showGlobalMessage('Eroare de conexiune', 'error');
+            }
+        }
+
+        async function deleteUserOverride(id) {
+            if (!confirm('Sigur vrei sa stergi acest override?')) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/applications/admin/user-apps/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (res.ok) {
+                    showGlobalMessage('Override sters!', 'success');
+                    loadUserOverrides();
+                } else {
+                    showGlobalMessage('Eroare la stergere', 'error');
+                }
+            } catch (error) {
+                showGlobalMessage('Eroare de conexiune', 'error');
+            }
+        }
+
+        function showGlobalMessage(text, type) {
+            const msg = document.getElementById('globalMessage');
+            msg.textContent = text;
+            msg.className = `message ${type} show`;
+            setTimeout(() => msg.classList.remove('show'), 5000);
+        }
+
+        function showModalMessage(id, text, type) {
+            const msg = document.getElementById(id);
+            msg.textContent = text;
+            msg.className = `message ${type} show`;
+            setTimeout(() => msg.classList.remove('show'), 5000);
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userInfo');
+            window.location.href = '/index.html';
+        }
+    </script>
+</body>
+</html>
