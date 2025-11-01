@@ -15,13 +15,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
-
+// Pool will be accessed via req.app.locals.pool (set in server.js)
 // Middleware will be applied in server.js
 // Assumes authenticateToken middleware is available on protected routes
 
@@ -69,7 +64,7 @@ router.get('/', async (req, res) => {
       `;
     } else {
       // Regular users see only apps their company has access to
-      const userResult = await pool.query(
+      const userResult = await req.app.locals.pool.query(
         'SELECT company_id FROM users WHERE id = $1',
         [req.user.id]
       );
@@ -108,7 +103,7 @@ router.get('/', async (req, res) => {
       params.push(companyId);
     }
 
-    const result = await pool.query(query, params);
+    const result = await req.app.locals.pool.query(query, params);
 
     res.json({
       success: true,
@@ -160,7 +155,7 @@ router.get('/:app_id', async (req, res) => {
         GROUP BY a.id
       `;
     } else {
-      const userResult = await pool.query(
+      const userResult = await req.app.locals.pool.query(
         'SELECT company_id FROM users WHERE id = $1',
         [req.user.id]
       );
@@ -186,7 +181,7 @@ router.get('/:app_id', async (req, res) => {
       params.push(companyId);
     }
 
-    const result = await pool.query(accessQuery, params);
+    const result = await req.app.locals.pool.query(accessQuery, params);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -253,7 +248,7 @@ router.post('/admin/applications', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(`
+    const result = await req.app.locals.pool.query(`
       INSERT INTO applications (
         app_id,
         app_name,
@@ -319,7 +314,7 @@ router.put('/admin/applications/:app_id', async (req, res) => {
   } = req.body;
 
   try {
-    const result = await pool.query(`
+    const result = await req.app.locals.pool.query(`
       UPDATE applications
       SET
         app_name = COALESCE($1, app_name),
@@ -360,7 +355,7 @@ router.get('/admin/company-apps', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(`
+    const result = await req.app.locals.pool.query(`
       SELECT
         ca.*,
         c.name as company_name,
@@ -411,7 +406,7 @@ router.post('/admin/company-apps', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(`
+    const result = await req.app.locals.pool.query(`
       INSERT INTO company_applications
         (company_id, app_id, max_devices, license_expires_at, notes, is_enabled)
       VALUES ($1, $2, $3, $4, $5, true)
@@ -451,7 +446,7 @@ router.delete('/admin/company-apps/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = await pool.query(`
+    const result = await req.app.locals.pool.query(`
       UPDATE company_applications
       SET is_enabled = false
       WHERE id = $1
