@@ -1271,160 +1271,230 @@ app.patch('/api/field-inventory/session/:id', authenticateToken, async (req, res
 });
 
 // GET /api/field-inventory/export/csv
-// Export CSV pentru date inventar
+// Export CSV pentru date inventar - format structurat
 app.get('/api/field-inventory/export/csv', authenticateToken, async (req, res) => {
   try {
     const { device_id, apv_number } = req.query;
 
+    // Build query pentru trees cu JOIN-uri
     let query = `
       SELECT
-        s.apv_number,
-        s.ua_number,
-        s.inventory_date,
-        s.total_trees,
-        s.total_volume,
-        s.device_id,
-        s.synced_at,
+        t.id,
         t.species,
         t.diameter,
         t.volume,
-        t.recorded_at
-      FROM field_inventory_sessions s
-      LEFT JOIN field_trees t ON s.id = t.session_id
+        s.apv_number,
+        s.ua_number,
+        s.inventory_date
+      FROM field_trees t
+      JOIN field_inventory_sessions s ON t.session_id = s.id
       WHERE 1=1
     `;
-
     const params = [];
-    let paramCount = 1;
+    let paramIndex = 1;
 
-    // SECURITATE: Filtrare pe company dacă nu e admin
+    // Filters
+    if (device_id) {
+      query += ` AND s.device_id = $${paramIndex++}`;
+      params.push(device_id);
+    }
+    if (apv_number) {
+      query += ` AND s.apv_number = $${paramIndex++}`;
+      params.push(apv_number);
+    }
+
+    // Company filtering pentru non-admin
     if (req.user.role !== 'admin') {
       const userInfo = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
-
-      if (userInfo.rows.length === 0 || !userInfo.rows[0].company_id) {
-        return res.status(403).json({
-          success: false,
-          error: 'User not associated with any company'
-        });
+      if (!userInfo.rows[0]?.company_id) {
+        return res.status(403).json({ error: 'User not associated with company' });
       }
-
-      query += ` AND s.company_id = $${paramCount}`;
+      query += ` AND s.company_id = $${paramIndex++}`;
       params.push(userInfo.rows[0].company_id);
-      paramCount++;
     }
 
-    if (device_id) {
-      query += ` AND s.device_id = $${paramCount}`;
-      params.push(device_id);
-      paramCount++;
-    }
-
-    if (apv_number) {
-      query += ` AND s.apv_number = $${paramCount}`;
-      params.push(apv_number);
-      paramCount++;
-    }
-
-    query += ` ORDER BY s.synced_at DESC, t.recorded_at DESC`;
+    query += ' ORDER BY t.species, t.diameter';
 
     const result = await pool.query(query, params);
 
-    // Generează CSV
-    let csv = 'APV,UA,Data Inventar,Total Arbori,Volum Total (mc),Dispozitiv,Data Sincronizare,Specie,Diametru,Volum Unitar,Data Inregistrare\n';
+    if (result.rows.length === 0) {
+      return res.status(404).send('Nu există date de exportat');
+    }
 
-    result.rows.forEach(row => {
-      csv += `"${row.apv_number}","${row.ua_number || ''}","${row.inventory_date || ''}",${row.total_trees},${row.total_volume},"${row.device_id}","${row.synced_at}","${row.species || ''}",${row.diameter || ''},${row.volume || ''},"${row.recorded_at || ''}"\n`;
+    // Get session info pentru header
+    const sessionInfo = result.rows[0];
+    const apv = sessionInfo.apv_number || 'N/A';
+    const ua = sessionInfo.ua_number || 'N/A';
+
+    // Build CSV cu format structurat
+    let csv = `Inventarul arborilor predați din APV ${apv}\n`;
+    csv += `UP I Stoiceni UA ${ua}\n\n`;
+    csv += 'Nr. Crt,Specia,Diametru (cm),Volum Unitar (m³)\n';
+
+    let totalVolume = 0;
+    result.rows.forEach((tree, index) => {
+      csv += `${index + 1},${tree.species || 'N/A'},${tree.diameter || 0},${tree.volume || 0}\n`;
+      totalVolume += parseFloat(tree.volume || 0);
     });
+
+    csv += `TOTAL,,${result.rows.length},${totalVolume.toFixed(6)}\n`;
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="inventar-teren-${Date.now()}.csv"`);
-    res.send('\ufeff' + csv); // BOM pentru UTF-8
-
+    res.setHeader('Content-Disposition', `attachment; filename="Inventar_APV_${apv}_${Date.now()}.csv"`);
+    res.send('\uFEFF' + csv); // UTF-8 BOM pentru Excel
   } catch (err) {
-    console.error('Export CSV error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to export CSV'
-    });
+    console.error('CSV export error:', err);
+    res.status(500).json({ error: 'Export failed', details: err.message });
   }
 });
 
 // GET /api/field-inventory/export/excel
-// Export format Excel-compatibil (TSV)
+// Export format Excel real (XLSX) folosind exceljs
 app.get('/api/field-inventory/export/excel', authenticateToken, async (req, res) => {
   try {
+    const ExcelJS = require('exceljs');
     const { device_id, apv_number } = req.query;
 
+    // Same query ca la CSV
     let query = `
       SELECT
-        s.apv_number,
-        s.ua_number,
-        s.inventory_date,
-        s.total_trees,
-        s.total_volume,
-        s.device_id,
-        s.synced_at,
+        t.id,
         t.species,
         t.diameter,
         t.volume,
-        t.recorded_at
-      FROM field_inventory_sessions s
-      LEFT JOIN field_trees t ON s.id = t.session_id
+        s.apv_number,
+        s.ua_number,
+        s.inventory_date
+      FROM field_trees t
+      JOIN field_inventory_sessions s ON t.session_id = s.id
       WHERE 1=1
     `;
-
     const params = [];
-    let paramCount = 1;
-
-    // SECURITATE: Filtrare pe company dacă nu e admin
-    if (req.user.role !== 'admin') {
-      const userInfo = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
-
-      if (userInfo.rows.length === 0 || !userInfo.rows[0].company_id) {
-        return res.status(403).json({
-          success: false,
-          error: 'User not associated with any company'
-        });
-      }
-
-      query += ` AND s.company_id = $${paramCount}`;
-      params.push(userInfo.rows[0].company_id);
-      paramCount++;
-    }
+    let paramIndex = 1;
 
     if (device_id) {
-      query += ` AND s.device_id = $${paramCount}`;
+      query += ` AND s.device_id = $${paramIndex++}`;
       params.push(device_id);
-      paramCount++;
     }
-
     if (apv_number) {
-      query += ` AND s.apv_number = $${paramCount}`;
+      query += ` AND s.apv_number = $${paramIndex++}`;
       params.push(apv_number);
-      paramCount++;
     }
 
-    query += ` ORDER BY s.synced_at DESC, t.recorded_at DESC`;
+    if (req.user.role !== 'admin') {
+      const userInfo = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
+      if (!userInfo.rows[0]?.company_id) {
+        return res.status(403).json({ error: 'User not associated with company' });
+      }
+      query += ` AND s.company_id = $${paramIndex++}`;
+      params.push(userInfo.rows[0].company_id);
+    }
+
+    query += ' ORDER BY t.species, t.diameter';
 
     const result = await pool.query(query, params);
 
-    // Generează TSV (tab-separated) pentru Excel
-    let tsv = 'APV\tUA\tData Inventar\tTotal Arbori\tVolum Total (mc)\tDispozitiv\tData Sincronizare\tSpecie\tDiametru\tVolum Unitar\tData Inregistrare\n';
+    if (result.rows.length === 0) {
+      return res.status(404).send('Nu există date de exportat');
+    }
 
-    result.rows.forEach(row => {
-      tsv += `${row.apv_number}\t${row.ua_number || ''}\t${row.inventory_date || ''}\t${row.total_trees}\t${row.total_volume}\t${row.device_id}\t${row.synced_at}\t${row.species || ''}\t${row.diameter || ''}\t${row.volume || ''}\t${row.recorded_at || ''}\n`;
+    const sessionInfo = result.rows[0];
+    const apv = sessionInfo.apv_number || 'N/A';
+    const ua = sessionInfo.ua_number || 'N/A';
+
+    // Create workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Inventar');
+
+    // Header
+    worksheet.mergeCells('A1:D1');
+    worksheet.getCell('A1').value = `Inventarul arborilor predați din APV ${apv}`;
+    worksheet.getCell('A1').font = { bold: true, size: 14 };
+    worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+    worksheet.mergeCells('A2:D2');
+    worksheet.getCell('A2').value = `UP I Stoiceni UA ${ua}`;
+    worksheet.getCell('A2').font = { bold: true, size: 12 };
+    worksheet.getCell('A2').alignment = { horizontal: 'center' };
+
+    // Table header (row 4)
+    const headerRow = worksheet.getRow(4);
+    headerRow.values = ['Nr. Crt', 'Specia', 'Diametru (cm)', 'Volum Unitar (m³)'];
+    headerRow.font = { bold: true };
+    headerRow.eachCell(cell => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
     });
 
-    res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="inventar-teren-${Date.now()}.xls"`);
-    res.send('\ufeff' + tsv); // BOM pentru UTF-8
+    // Data rows
+    let totalVolume = 0;
+    result.rows.forEach((tree, index) => {
+      const row = worksheet.addRow([
+        index + 1,
+        tree.species || 'N/A',
+        tree.diameter || 0,
+        parseFloat(tree.volume || 0)
+      ]);
+
+      row.eachCell(cell => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+
+      totalVolume += parseFloat(tree.volume || 0);
+    });
+
+    // Total row
+    const totalRow = worksheet.addRow([
+      'TOTAL',
+      '',
+      result.rows.length,
+      totalVolume
+    ]);
+    totalRow.font = { bold: true };
+    totalRow.eachCell(cell => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFE0B2' }
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Column widths
+    worksheet.getColumn(1).width = 10;
+    worksheet.getColumn(2).width = 25;
+    worksheet.getColumn(3).width = 15;
+    worksheet.getColumn(4).width = 20;
+
+    // Send
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Inventar_APV_${apv}_${Date.now()}.xlsx"`);
+
+    await workbook.xlsx.write(res);
+    res.end();
 
   } catch (err) {
-    console.error('Export Excel error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to export Excel'
-    });
+    console.error('Excel export error:', err);
+    res.status(500).json({ error: 'Export failed', details: err.message });
   }
 });
 
