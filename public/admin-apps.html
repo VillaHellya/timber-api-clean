@@ -367,7 +367,7 @@
             const html = `<table><thead><tr><th>Icon</th><th>App ID</th><th>Nume</th><th>URL</th><th>Activa</th><th>Actiuni</th></tr></thead><tbody>` +
                 allApps.map(app => `
                     <tr>
-                        <td style="font-size: 32px;">${app.app_icon_url || '=�'}</td>
+                        <td style="font-size: 32px;">${app.app_icon_url || '📱'}</td>
                         <td><code>${app.app_id}</code></td>
                         <td><strong>${app.app_name}</strong><br><small style="color:#666;">${app.app_description || ''}</small></td>
                         <td><a href="${app.landing_url}" target="_blank">${app.landing_url}</a></td>
