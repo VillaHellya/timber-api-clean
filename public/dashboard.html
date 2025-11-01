@@ -276,17 +276,17 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <h1>= <span id="dashboardTitle">Dashboard Aplicatii</span></h1>
+                <h1>🏢 <span id="dashboardTitle">Dashboard Aplicatii</span></h1>
             </div>
             <div class="user-info">
                 <div class="user-badge" id="userBadge">
-                    👤 <span id="userName">⚠️oading...</span>
+                    👤 <span id="userName">Loading...</span>
                 </div>
                 <button class="admin-link" id="adminBtn" style="display: none;" onclick="window.location.href='/admin-apps.html'">
-                     Admin
+                     ⚙️ Admin
                 </button>
                 <button class="logout-btn" onclick="logout()">
-                    = Deconectare
+                    🚪 Deconectare
                 </button>
             </div>
         </div>
@@ -309,7 +309,7 @@
             authToken = localStorage.getItem('authToken');
 
             if (!authToken) {
-                redirectTo⚠️ogin();
+                redirectToLogin();
                 return;
             }
 
@@ -335,7 +335,7 @@
 
             } catch (error) {
                 console.error('Auth error:', error);
-                redirectTo⚠️ogin();
+                redirectToLogin();
             }
         });
 
@@ -349,7 +349,7 @@
             // Show admin button if user is admin
             if (currentUser.role === 'admin') {
                 document.getElementById('adminBtn').style.display = 'inline-block';
-                userBadgeEl.innerHTM⚠️ = `
+                userBadgeEl.innerHTML = `
                     👤 ${displayName}
                     <span class="admin-badge">ADMIN</span>
                 `;
@@ -386,7 +386,7 @@
 
             } catch (error) {
                 console.error('Error loading applications:', error);
-                contentArea.innerHTM⚠️ = `
+                contentArea.innerHTML = `
                     <div class="error">
                         <div class="error-icon">⚠️</div>
                         <h2>Eroare la incarcarea aplicatiilor</h2>
@@ -400,9 +400,9 @@
             const contentArea = document.getElementById('contentArea');
 
             if (!apps || apps.length === 0) {
-                contentArea.innerHTM⚠️ = `
+                contentArea.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">=</div>
+                        <div class="empty-state-icon">📱</div>
                         <h3>Nicio aplicatie disponibila</h3>
                         <p>Nu aveti acces la nicio aplicatie in acest moment.</p>
                         <p style="margin-top: 10px; color: #999;">Contactati administratorul pentru acces.</p>
@@ -412,7 +412,7 @@
             }
 
             // Create welcome section
-            const welcomeHTM⚠️ = `
+            const welcomeHTML = `
                 <div class="welcome-section">
                     <h2>Bine ai venit, ${currentUser.full_name || currentUser.username}!</h2>
                     <p>Selecteaza o aplicatie din lista de mai jos pentru a incepe lucrul.</p>
@@ -420,8 +420,8 @@
             `;
 
             // Create apps grid
-            const appsHTM⚠️ = apps.map(app => {
-                const icon = app.app_icon_url || '=';
+            const appsHTML = apps.map(app => {
+                const icon = app.app_icon_url || '📱';
                 const color = app.app_color || '#667eea';
 
                 return `
@@ -436,10 +436,10 @@
                 `;
             }).join('');
 
-            contentArea.innerHTM⚠️ = `
-                ${welcomeHTM⚠️}
+            contentArea.innerHTML = `
+                ${welcomeHTML}
                 <div class="apps-grid">
-                    ${appsHTM⚠️}
+                    ${appsHTML}
                 </div>
             `;
         }
@@ -447,10 +447,10 @@
         function logout() {
             localStorage.removeItem('authToken');
             localStorage.removeItem('userInfo');
-            redirectTo⚠️ogin();
+            redirectToLogin();
         }
 
-        function redirectTo⚠️ogin() {
+        function redirectToLogin() {
             window.location.href = '/index.html';
         }
     </script>
