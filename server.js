@@ -101,7 +101,38 @@ async function initDatabase() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_field_trees_session ON field_trees(session_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_field_trees_device ON field_trees(device_id)`);
 
-    console.log('✅ Field inventory tables initialized');
+    // Migrare: adaugă company_id pentru multi-tenant security (SAFE - doar dacă coloana nu există)
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='field_inventory_sessions' AND column_name='company_id'
+        ) THEN
+          ALTER TABLE field_inventory_sessions
+          ADD COLUMN company_id INTEGER REFERENCES companies(id);
+
+          CREATE INDEX idx_field_sessions_company ON field_inventory_sessions(company_id);
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='field_trees' AND column_name='company_id'
+        ) THEN
+          ALTER TABLE field_trees
+          ADD COLUMN company_id INTEGER REFERENCES companies(id);
+
+          CREATE INDEX idx_field_trees_company ON field_trees(company_id);
+        END IF;
+      END $$;
+    `);
+
+    console.log('✅ Field inventory tables initialized with company isolation');
 
     try {
       const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['admin']);
@@ -776,6 +807,71 @@ app.post('/api/field-inventory/sync', async (req, res) => {
     });
   }
 
+  // SECURITATE: Validare device și obținere company_id din licență
+  let company_id = null;
+  try {
+    const deviceCheck = await pool.query(`
+      SELECT l.company_id, l.is_active, l.expires_at, l.grace_period_days,
+             c.name as company_name, u.full_name as user_name
+      FROM license_devices ld
+      JOIN licenses l ON ld.license_id = l.id
+      LEFT JOIN companies c ON l.company_id = c.id
+      LEFT JOIN users u ON l.user_id = u.id
+      WHERE ld.device_id = $1
+    `, [device_id]);
+
+    if (deviceCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        error: 'Device not activated',
+        message: 'This device is not registered with any license. Please activate your license in the app first.'
+      });
+    }
+
+    const licenseInfo = deviceCheck.rows[0];
+
+    // Verificare licență activă
+    if (!licenseInfo.is_active) {
+      return res.status(403).json({
+        success: false,
+        error: 'License inactive',
+        message: 'Your license is inactive. Please contact support.'
+      });
+    }
+
+    // Verificare expirare (cu grace period)
+    if (licenseInfo.expires_at) {
+      const expiryDate = new Date(licenseInfo.expires_at);
+      const gracePeriodMs = (licenseInfo.grace_period_days || 0) * 24 * 60 * 60 * 1000;
+      const effectiveExpiryDate = new Date(expiryDate.getTime() + gracePeriodMs);
+
+      if (new Date() > effectiveExpiryDate) {
+        return res.status(403).json({
+          success: false,
+          error: 'License expired',
+          message: `Your license expired on ${expiryDate.toISOString().split('T')[0]}. Please renew your subscription.`,
+          expired_at: licenseInfo.expires_at
+        });
+      }
+    }
+
+    company_id = licenseInfo.company_id;
+
+    // Update last_seen pentru device
+    await pool.query(
+      'UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE device_id = $1',
+      [device_id]
+    );
+
+  } catch (err) {
+    console.error('Device validation error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Device validation failed',
+      details: err.message
+    });
+  }
+
   const client = await pool.connect();
 
   try {
@@ -784,15 +880,16 @@ app.post('/api/field-inventory/sync', async (req, res) => {
     const syncedSessions = [];
     const syncedTrees = [];
 
-    // Inserare sesiuni de inventariere
+    // Inserare sesiuni de inventariere (cu company_id pentru securitate multi-tenant)
     for (const session of sessions) {
       const sessionResult = await client.query(
         `INSERT INTO field_inventory_sessions
-         (device_id, apv_number, ua_number, inventory_date, total_trees, total_volume, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (device_id, company_id, apv_number, ua_number, inventory_date, total_trees, total_volume, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
         [
           device_id,
+          company_id,
           session.apvNumber,
           session.uaNumber || null,
           session.inventoryDate || null,
@@ -812,11 +909,12 @@ app.post('/api/field-inventory/sync', async (req, res) => {
         for (const tree of sessionTrees) {
           await client.query(
             `INSERT INTO field_trees
-             (session_id, device_id, tree_number, species, diameter, height, volume, latitude, longitude, recorded_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+             (session_id, device_id, company_id, tree_number, species, diameter, height, volume, latitude, longitude, recorded_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
             [
               sessionId,
               device_id,
+              company_id,
               tree.treeNumber || null,
               tree.species || null,
               tree.diameter || null,
@@ -909,6 +1007,269 @@ app.get('/api/field-inventory/history/:deviceId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch history'
+    });
+  }
+});
+
+// GET /api/field-inventory/all-sessions
+// Obține toate sesiunile de inventar (pentru interfața web)
+app.get('/api/field-inventory/all-sessions', authenticateToken, async (req, res) => {
+  try {
+    // Admin vede tot, user-ii obișnuiți văd doar datele companiei lor
+    let query = `
+      SELECT s.*, COUNT(t.id) as tree_records_count
+      FROM field_inventory_sessions s
+      LEFT JOIN field_trees t ON s.id = t.session_id
+    `;
+
+    const params = [];
+
+    // Filtrare pe company_id dacă nu este admin
+    if (req.user.role !== 'admin') {
+      // Obține company_id al user-ului
+      const userInfo = await pool.query(
+        'SELECT company_id FROM users WHERE id = $1',
+        [req.user.id]
+      );
+
+      if (userInfo.rows.length === 0 || !userInfo.rows[0].company_id) {
+        return res.status(403).json({
+          success: false,
+          error: 'User not associated with any company'
+        });
+      }
+
+      query += ' WHERE s.company_id = $1';
+      params.push(userInfo.rows[0].company_id);
+    }
+
+    query += ' GROUP BY s.id ORDER BY s.synced_at DESC';
+
+    const sessions = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      sessions: sessions.rows,
+      total: sessions.rows.length,
+      filtered_by_company: req.user.role !== 'admin'
+    });
+
+  } catch (err) {
+    console.error('Error fetching all sessions:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch sessions'
+    });
+  }
+});
+
+// GET /api/field-inventory/session/:id/trees
+// Obține arborii pentru o sesiune specifică
+app.get('/api/field-inventory/session/:id/trees', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Verificare acces la sesiune (dacă nu e admin, verifică că sesiunea aparține companiei sale)
+    if (req.user.role !== 'admin') {
+      const userInfo = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
+
+      if (userInfo.rows.length === 0 || !userInfo.rows[0].company_id) {
+        return res.status(403).json({
+          success: false,
+          error: 'User not associated with any company'
+        });
+      }
+
+      const sessionCheck = await pool.query(
+        'SELECT id FROM field_inventory_sessions WHERE id = $1 AND company_id = $2',
+        [id, userInfo.rows[0].company_id]
+      );
+
+      if (sessionCheck.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied to this session'
+        });
+      }
+    }
+
+    const trees = await pool.query(
+      `SELECT * FROM field_trees WHERE session_id = $1 ORDER BY recorded_at DESC`,
+      [id]
+    );
+
+    const totalVolume = trees.rows.reduce((sum, tree) => sum + parseFloat(tree.volume || 0), 0);
+
+    res.json({
+      success: true,
+      session_id: id,
+      trees: trees.rows,
+      total_volume: totalVolume.toFixed(2)
+    });
+
+  } catch (err) {
+    console.error('Error fetching session trees:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch trees'
+    });
+  }
+});
+
+// GET /api/field-inventory/export/csv
+// Export CSV pentru date inventar
+app.get('/api/field-inventory/export/csv', authenticateToken, async (req, res) => {
+  try {
+    const { device_id, apv_number } = req.query;
+
+    let query = `
+      SELECT
+        s.apv_number,
+        s.ua_number,
+        s.inventory_date,
+        s.total_trees,
+        s.total_volume,
+        s.device_id,
+        s.synced_at,
+        t.species,
+        t.diameter,
+        t.volume,
+        t.recorded_at
+      FROM field_inventory_sessions s
+      LEFT JOIN field_trees t ON s.id = t.session_id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramCount = 1;
+
+    // SECURITATE: Filtrare pe company dacă nu e admin
+    if (req.user.role !== 'admin') {
+      const userInfo = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
+
+      if (userInfo.rows.length === 0 || !userInfo.rows[0].company_id) {
+        return res.status(403).json({
+          success: false,
+          error: 'User not associated with any company'
+        });
+      }
+
+      query += ` AND s.company_id = $${paramCount}`;
+      params.push(userInfo.rows[0].company_id);
+      paramCount++;
+    }
+
+    if (device_id) {
+      query += ` AND s.device_id = $${paramCount}`;
+      params.push(device_id);
+      paramCount++;
+    }
+
+    if (apv_number) {
+      query += ` AND s.apv_number = $${paramCount}`;
+      params.push(apv_number);
+      paramCount++;
+    }
+
+    query += ` ORDER BY s.synced_at DESC, t.recorded_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    // Generează CSV
+    let csv = 'APV,UA,Data Inventar,Total Arbori,Volum Total (mc),Dispozitiv,Data Sincronizare,Specie,Diametru,Volum Unitar,Data Inregistrare\n';
+
+    result.rows.forEach(row => {
+      csv += `"${row.apv_number}","${row.ua_number || ''}","${row.inventory_date || ''}",${row.total_trees},${row.total_volume},"${row.device_id}","${row.synced_at}","${row.species || ''}",${row.diameter || ''},${row.volume || ''},"${row.recorded_at || ''}"\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="inventar-teren-${Date.now()}.csv"`);
+    res.send('\ufeff' + csv); // BOM pentru UTF-8
+
+  } catch (err) {
+    console.error('Export CSV error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export CSV'
+    });
+  }
+});
+
+// GET /api/field-inventory/export/excel
+// Export format Excel-compatibil (TSV)
+app.get('/api/field-inventory/export/excel', authenticateToken, async (req, res) => {
+  try {
+    const { device_id, apv_number } = req.query;
+
+    let query = `
+      SELECT
+        s.apv_number,
+        s.ua_number,
+        s.inventory_date,
+        s.total_trees,
+        s.total_volume,
+        s.device_id,
+        s.synced_at,
+        t.species,
+        t.diameter,
+        t.volume,
+        t.recorded_at
+      FROM field_inventory_sessions s
+      LEFT JOIN field_trees t ON s.id = t.session_id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramCount = 1;
+
+    // SECURITATE: Filtrare pe company dacă nu e admin
+    if (req.user.role !== 'admin') {
+      const userInfo = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
+
+      if (userInfo.rows.length === 0 || !userInfo.rows[0].company_id) {
+        return res.status(403).json({
+          success: false,
+          error: 'User not associated with any company'
+        });
+      }
+
+      query += ` AND s.company_id = $${paramCount}`;
+      params.push(userInfo.rows[0].company_id);
+      paramCount++;
+    }
+
+    if (device_id) {
+      query += ` AND s.device_id = $${paramCount}`;
+      params.push(device_id);
+      paramCount++;
+    }
+
+    if (apv_number) {
+      query += ` AND s.apv_number = $${paramCount}`;
+      params.push(apv_number);
+      paramCount++;
+    }
+
+    query += ` ORDER BY s.synced_at DESC, t.recorded_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    // Generează TSV (tab-separated) pentru Excel
+    let tsv = 'APV\tUA\tData Inventar\tTotal Arbori\tVolum Total (mc)\tDispozitiv\tData Sincronizare\tSpecie\tDiametru\tVolum Unitar\tData Inregistrare\n';
+
+    result.rows.forEach(row => {
+      tsv += `${row.apv_number}\t${row.ua_number || ''}\t${row.inventory_date || ''}\t${row.total_trees}\t${row.total_volume}\t${row.device_id}\t${row.synced_at}\t${row.species || ''}\t${row.diameter || ''}\t${row.volume || ''}\t${row.recorded_at || ''}\n`;
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="inventar-teren-${Date.now()}.xls"`);
+    res.send('\ufeff' + tsv); // BOM pentru UTF-8
+
+  } catch (err) {
+    console.error('Export Excel error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export Excel'
     });
   }
 });
