@@ -305,7 +305,7 @@
         let currentUser = null;
 
         // Check authentication on load
-        window.addEvent⚠️istener('DOMContent⚠️oaded', async () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             authToken = localStorage.getItem('authToken');
 
             if (!authToken) {
@@ -330,7 +330,7 @@
                 // Update UI with user info
                 updateUserInfo();
 
-                // ⚠️oad applications
+                // Load applications
                 await loadApplications();
 
             } catch (error) {
