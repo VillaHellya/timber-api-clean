@@ -59,7 +59,7 @@ router.get('/', async (req, res) => {
         LEFT JOIN licenses l ON l.app_id = a.app_id
         LEFT JOIN license_devices ld ON ld.license_id = l.id
         WHERE a.is_active = true
-        GROUP BY a.id
+        GROUP BY a.app_id, a.app_name, a.app_description, a.app_icon_url, a.app_color, a.landing_url, a.api_base_path, a.is_active
         ORDER BY a.app_name
       `;
     } else {
@@ -152,7 +152,7 @@ router.get('/:app_id', async (req, res) => {
         LEFT JOIN licenses l ON l.app_id = a.app_id
         LEFT JOIN license_devices ld ON ld.license_id = l.id
         WHERE a.app_id = $1
-        GROUP BY a.id
+        GROUP BY a.app_id
       `;
     } else {
       const userResult = await req.app.locals.pool.query(
