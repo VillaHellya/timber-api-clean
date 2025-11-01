@@ -895,13 +895,45 @@ app.post('/api/field-inventory/sync', async (req, res) => {
 
     // Inserare sesiuni de inventariere (cu company_id pentru securitate multi-tenant)
     for (const session of sessions) {
-      const sessionResult = await client.query(
-        `INSERT INTO field_inventory_sessions
-         (device_id, company_id, apv_number, ua_number, inventory_date, total_trees, total_volume, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id`,
-        [
-          device_id,
+      // Verifică dacă sesiunea există deja (prevent duplicates)
+      const existingSession = await client.query(
+        `SELECT id FROM field_inventory_sessions
+         WHERE device_id = $1 AND apv_number = $2 AND inventory_date = $3`,
+        [device_id, session.apv_number, session.inventory_date]
+      );
+
+      let sessionId;
+
+      if (existingSession.rows.length > 0) {
+        // Sesiunea există - UPDATE în loc de INSERT
+        sessionId = existingSession.rows[0].id;
+        await client.query(
+          `UPDATE field_inventory_sessions
+           SET ua_number = $1, total_trees = $2, total_volume = $3,
+               metadata = $4, synced_at = CURRENT_TIMESTAMP
+           WHERE id = $5`,
+          [
+            session.ua_number || null,
+            session.total_trees || 0,
+            session.total_volume || 0,
+            session.metadata ? JSON.stringify(session.metadata) : null,
+            sessionId
+          ]
+        );
+
+        // Șterge arborii vechi pentru a-i înlocui
+        await client.query('DELETE FROM field_trees WHERE session_id = $1', [sessionId]);
+
+        console.log(`🔄 Updated existing session ${sessionId} for APV ${session.apv_number}`);
+      } else {
+        // Sesiune nouă - INSERT
+        const sessionResult = await client.query(
+          `INSERT INTO field_inventory_sessions
+           (device_id, company_id, apv_number, ua_number, inventory_date, total_trees, total_volume, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id`,
+          [
+            device_id,
           company_id,
           session.apvNumber,
           session.uaNumber || null,
@@ -912,7 +944,10 @@ app.post('/api/field-inventory/sync', async (req, res) => {
         ]
       );
 
-      const sessionId = sessionResult.rows[0].id;
+        sessionId = sessionResult.rows[0].id;
+        console.log(`✅ Created new session ${sessionId} for APV ${session.apv_number}`);
+      }
+
       syncedSessions.push(sessionId);
 
       // Inserare arbori pentru această sesiune
