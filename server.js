@@ -1181,6 +1181,62 @@ app.delete('/api/field-inventory/session/:id', authenticateToken, async (req, re
   }
 });
 
+// POST /api/field-inventory/delete-session
+// Șterge o sesiune din aplicația mobilă (PUBLIC - fără JWT, folosește device_id)
+app.post('/api/field-inventory/delete-session', async (req, res) => {
+  try {
+    const { session_id, device_id } = req.body;
+
+    // Validare input
+    if (!session_id || !device_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'session_id and device_id are required'
+      });
+    }
+
+    // Verifică dacă sesiunea există și aparține device-ului
+    const checkSession = await pool.query(
+      'SELECT id, apv_number, device_id FROM field_inventory_sessions WHERE id = $1',
+      [session_id]
+    );
+
+    if (checkSession.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    // Verificare: doar device-ul care a creat sesiunea poate șterge
+    if (checkSession.rows[0].device_id !== device_id) {
+      return res.status(403).json({
+        success: false,
+        error: 'You can only delete sessions created by your device'
+      });
+    }
+
+    // Șterge sesiunea (cascade va șterge și tree records)
+    await pool.query('DELETE FROM field_inventory_sessions WHERE id = $1', [session_id]);
+
+    console.log(`✅ Device ${device_id} deleted session ${session_id} (APV: ${checkSession.rows[0].apv_number})`);
+
+    res.json({
+      success: true,
+      message: 'Session deleted successfully',
+      session_id: parseInt(session_id)
+    });
+
+  } catch (err) {
+    console.error('Mobile delete session error:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete session',
+      details: err.message
+    });
+  }
+});
+
 // PATCH /api/field-inventory/session/:id
 // Editează o sesiune de inventar (doar admin)
 app.patch('/api/field-inventory/session/:id', authenticateToken, async (req, res) => {
