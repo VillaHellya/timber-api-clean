@@ -899,7 +899,7 @@ app.post('/api/field-inventory/sync', async (req, res) => {
       const existingSession = await client.query(
         `SELECT id FROM field_inventory_sessions
          WHERE device_id = $1 AND apv_number = $2 AND inventory_date = $3`,
-        [device_id, session.apv_number, session.inventory_date]
+        [device_id, session.apvNumber, session.inventoryDate]
       );
 
       let sessionId;
@@ -913,9 +913,9 @@ app.post('/api/field-inventory/sync', async (req, res) => {
                metadata = $4, synced_at = CURRENT_TIMESTAMP
            WHERE id = $5`,
           [
-            session.ua_number || null,
-            session.total_trees || 0,
-            session.total_volume || 0,
+            session.uaNumber || null,
+            session.totalTrees || 0,
+            session.totalVolume || 0,
             session.metadata ? JSON.stringify(session.metadata) : null,
             sessionId
           ]
@@ -924,7 +924,7 @@ app.post('/api/field-inventory/sync', async (req, res) => {
         // Șterge arborii vechi pentru a-i înlocui
         await client.query('DELETE FROM field_trees WHERE session_id = $1', [sessionId]);
 
-        console.log(`🔄 Updated existing session ${sessionId} for APV ${session.apv_number}`);
+        console.log(`🔄 Updated existing session ${sessionId} for APV ${session.apvNumber}`);
       } else {
         // Sesiune nouă - INSERT
         const sessionResult = await client.query(
@@ -945,7 +945,7 @@ app.post('/api/field-inventory/sync', async (req, res) => {
       );
 
         sessionId = sessionResult.rows[0].id;
-        console.log(`✅ Created new session ${sessionId} for APV ${session.apv_number}`);
+        console.log(`✅ Created new session ${sessionId} for APV ${session.apvNumber}`);
       }
 
       syncedSessions.push(sessionId);
