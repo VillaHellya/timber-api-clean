@@ -1026,6 +1026,279 @@ app.post('/api/field-inventory/sync', async (req, res) => {
   }
 });
 
+// POST /api/field-inventory/sync-delivery
+// Sincronizare la nivel de PREDARE (PUBLIC - fără autentificare JWT)
+// Flutter trimite o singură predare odată, nu toate datele din APV
+app.post('/api/field-inventory/sync-delivery', async (req, res) => {
+  const { device_id, delivery_id, delivery, trees } = req.body;
+
+  // Validare input
+  if (!device_id) {
+    return res.status(400).json({
+      success: false,
+      error: 'Device ID is required'
+    });
+  }
+
+  if (!delivery_id) {
+    return res.status(400).json({
+      success: false,
+      error: 'Delivery ID is required'
+    });
+  }
+
+  if (!delivery) {
+    return res.status(400).json({
+      success: false,
+      error: 'Delivery data is required'
+    });
+  }
+
+  if (!delivery.apvNumber) {
+    return res.status(400).json({
+      success: false,
+      error: 'APV number is required in delivery data'
+    });
+  }
+
+  if (!trees || !Array.isArray(trees) || trees.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'At least one tree is required'
+    });
+  }
+
+  // SECURITATE: Validare device și obținere company_id din licență
+  let company_id = null;
+  try {
+    const deviceCheck = await pool.query(`
+      SELECT l.company_id, l.is_active, l.expires_at, l.grace_period_days,
+             c.name as company_name, u.full_name as user_name
+      FROM license_devices ld
+      JOIN licenses l ON ld.license_id = l.id
+      LEFT JOIN companies c ON l.company_id = c.id
+      LEFT JOIN users u ON l.user_id = u.id
+      WHERE ld.device_id = $1
+    `, [device_id]);
+
+    if (deviceCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        error: 'Device not activated',
+        message: 'This device is not registered with any license. Please activate your license in the app first.'
+      });
+    }
+
+    const licenseInfo = deviceCheck.rows[0];
+
+    // Verificare licență activă
+    if (!licenseInfo.is_active) {
+      return res.status(403).json({
+        success: false,
+        error: 'License inactive',
+        message: 'Your license is inactive. Please contact support.'
+      });
+    }
+
+    // Verificare expirare (cu grace period)
+    if (licenseInfo.expires_at) {
+      const expiryDate = new Date(licenseInfo.expires_at);
+      const gracePeriodMs = (licenseInfo.grace_period_days || 0) * 24 * 60 * 60 * 1000;
+      const effectiveExpiryDate = new Date(expiryDate.getTime() + gracePeriodMs);
+
+      if (new Date() > effectiveExpiryDate) {
+        return res.status(403).json({
+          success: false,
+          error: 'License expired',
+          message: `Your license expired on ${expiryDate.toISOString().split('T')[0]}. Please renew your subscription.`,
+          expired_at: licenseInfo.expires_at
+        });
+      }
+    }
+
+    company_id = licenseInfo.company_id;
+
+    // Update last_seen pentru device
+    await pool.query(
+      'UPDATE license_devices SET last_seen = CURRENT_TIMESTAMP WHERE device_id = $1',
+      [device_id]
+    );
+
+  } catch (err) {
+    console.error('Device validation error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Device validation failed',
+      details: err.message
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Verifică dacă această predare există deja (prevent duplicates)
+    // Căutăm după device_id, apv_number și deliveryId din metadata
+    const existingSession = await client.query(
+      `SELECT id FROM field_inventory_sessions
+       WHERE device_id = $1 AND apv_number = $2 AND metadata->>'deliveryId' = $3`,
+      [device_id, delivery.apvNumber, delivery_id]
+    );
+
+    let sessionId;
+    let isUpdate = false;
+
+    // Pregătire metadata - include toate informațiile despre predare
+    const metadata = {
+      deliveryId: delivery_id,
+      deliveryNumber: delivery.deliveryNumber,
+      deliveryDate: delivery.deliveryDate,
+      ...(delivery.metadata || {})
+    };
+
+    if (existingSession.rows.length > 0) {
+      // Predarea există - UPDATE în loc de INSERT
+      sessionId = existingSession.rows[0].id;
+      isUpdate = true;
+
+      await client.query(
+        `UPDATE field_inventory_sessions
+         SET ua_number = $1,
+             inventory_date = $2,
+             total_trees = $3,
+             total_volume = $4,
+             metadata = $5,
+             synced_at = CURRENT_TIMESTAMP
+         WHERE id = $6`,
+        [
+          delivery.uaNumber || null,
+          delivery.deliveryDate || null,
+          delivery.totalTrees || 0,
+          delivery.totalVolume || 0,
+          JSON.stringify(metadata),
+          sessionId
+        ]
+      );
+
+      // Șterge arborii vechi pentru a-i înlocui cu cei noi
+      await client.query('DELETE FROM field_trees WHERE session_id = $1', [sessionId]);
+
+      console.log(`🔄 Updated delivery ${delivery_id} (session ${sessionId}) for APV ${delivery.apvNumber}`);
+    } else {
+      // Predare nouă - INSERT
+      const sessionResult = await client.query(
+        `INSERT INTO field_inventory_sessions
+         (device_id, company_id, apv_number, ua_number, inventory_date, total_trees, total_volume, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        [
+          device_id,
+          company_id,
+          delivery.apvNumber,
+          delivery.uaNumber || null,
+          delivery.deliveryDate || null,
+          delivery.totalTrees || 0,
+          delivery.totalVolume || 0,
+          JSON.stringify(metadata)
+        ]
+      );
+
+      sessionId = sessionResult.rows[0].id;
+      console.log(`✅ Created new delivery ${delivery_id} (session ${sessionId}) for APV ${delivery.apvNumber}`);
+    }
+
+    // Inserare arbori pentru această predare
+    let treesInserted = 0;
+    for (const tree of trees) {
+      await client.query(
+        `INSERT INTO field_trees
+         (session_id, device_id, company_id, tree_number, species, diameter, height, volume, latitude, longitude, recorded_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          sessionId,
+          device_id,
+          company_id,
+          tree.treeNumber || null,
+          tree.species || null,
+          tree.diameter || null,
+          tree.height || null,
+          tree.volume || null,
+          tree.latitude || null,
+          tree.longitude || null,
+          tree.recordedAt ? new Date(tree.recordedAt) : new Date()
+        ]
+      );
+      treesInserted++;
+    }
+
+    // Log sincronizare
+    await client.query(
+      `INSERT INTO field_sync_log
+       (device_id, sync_type, trees_count, sessions_count, status, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        device_id,
+        'delivery',
+        treesInserted,
+        1,
+        'success',
+        JSON.stringify({
+          deliveryId: delivery_id,
+          apvNumber: delivery.apvNumber,
+          isUpdate: isUpdate
+        })
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: `Delivery ${isUpdate ? 'updated' : 'synced'} successfully`,
+      synced: {
+        delivery_id: delivery_id,
+        session_id: sessionId,
+        trees: treesInserted,
+        volume: delivery.totalVolume || 0,
+        synced_at: new Date().toISOString(),
+        was_update: isUpdate
+      }
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Delivery sync error:', err);
+
+    // Log eroare
+    try {
+      await pool.query(
+        `INSERT INTO field_sync_log
+         (device_id, sync_type, status, error_message, metadata)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          device_id,
+          'delivery',
+          'error',
+          err.message,
+          JSON.stringify({ deliveryId: delivery_id, apvNumber: delivery.apvNumber })
+        ]
+      );
+    } catch (logErr) {
+      console.error('Failed to log sync error:', logErr);
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Delivery sync failed',
+      details: err.message
+    });
+
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/field-inventory/history/:deviceId
 // Obține istoricul sincronizărilor pentru un dispozitiv
 app.get('/api/field-inventory/history/:deviceId', async (req, res) => {
